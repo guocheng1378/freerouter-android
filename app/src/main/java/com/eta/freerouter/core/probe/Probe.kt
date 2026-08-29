@@ -1,9 +1,9 @@
 package com.eta.freerouter.core.probe
 
-import com.eta.freerouter.core.engine.Response
-import com.eta.freerouter.core.engine.Transport.request
 import com.eta.freerouter.core.registry.Provider
 import com.eta.freerouter.core.state.HealthStatus
+import com.eta.freerouter.core.transport.Response
+import com.eta.freerouter.core.transport.request
 
 object Probe {
     private val PAID_HINTS = listOf(
@@ -24,7 +24,7 @@ object Probe {
         if (key.isNotEmpty()) headers["Authorization"] = "Bearer $key"
         val body = """{"model":"$modelId","messages":[{"role":"user","content":"ping"}],"max_tokens":16,"stream":false}"""
         val resp = request(url, method = "POST", headers = headers, body = body, timeoutMs = timeoutMs)
-        return classify(resp.status, resp.body ?: "")
+        return classify(resp.status, resp.text)
     }
 
     fun classify(code: Int, body: String): HealthStatus {
