@@ -1,8 +1,6 @@
 package com.eta.freerouter
 
 import android.content.Context
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -68,12 +66,7 @@ object Keys {
     private lateinit var prefs: android.content.SharedPreferences
 
     fun init(context: Context) {
-        val mk = MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build()
-        prefs = EncryptedSharedPreferences.create(
-            context, PREF, mk,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-        )
+        prefs = context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
     }
 
     fun get(env: String): String? = prefs.getString(env, null)?.takeIf { it.isNotEmpty() }
