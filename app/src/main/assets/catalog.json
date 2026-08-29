@@ -24,15 +24,6 @@
         "itemsPath": "data",
         "idPath": "id",
         "deny": [
-          "gpt-*",
-          "claude-*",
-          "gemini-*",
-          "qwen*",
-          "glm-*",
-          "kimi-*",
-          "minimax-*",
-          "mimo-*",
-          "hy*",
           "*embed*",
           "*rerank*"
         ],
