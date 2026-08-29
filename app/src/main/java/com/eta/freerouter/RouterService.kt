@@ -6,7 +6,6 @@ import android.os.IBinder
 import com.eta.freerouter.core.engine.FreeRouterEngine
 import com.eta.freerouter.core.registry.Provider
 import com.eta.freerouter.core.registry.loadProviders
-import com.eta.freerouter.core.transport.LocalGateway
 
 class RouterService : Service() {
     private var engine: FreeRouterEngine? = null
@@ -37,7 +36,7 @@ class RouterService : Service() {
 
     override fun onDestroy() {
         gateway?.stop()
-        engine?.watch?.stop()
+        engine?.stop()
         engineRef = null
         engine = null
         super.onDestroy()

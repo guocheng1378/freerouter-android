@@ -8,6 +8,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 class LocalGateway(private val port: Int, private val engine: FreeRouterEngine) : NanoHTTPD(port) {
+    companion object { const val PORT = 4000 }
+
     override fun serve(session: IHTTPSession): NanoHTTPD.Response {
         val uri = session.uri
         val method = session.method
