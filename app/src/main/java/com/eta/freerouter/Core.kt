@@ -91,10 +91,63 @@ object Router {
 
     data class Target(val provider: Provider, val model: String)
 
+    private val discoveryCache = mutableMapOf<String, Pair<Long, List<String>>>()
+    private const val DISCOVERY_TTL_MS = 10 * 60 * 1000L
+
+    private fun globMatch(pattern: String, s: String): Boolean {
+        val regex = pattern.split("*").joinToString(".*") { Regex.escape(it) }
+        return Regex("^$regex\$").matches(s)
+    }
+
+    private fun parseModelIds(body: String): List<String> {
+        return try {
+            val jo = JSONObject(body)
+            val list = when {
+                jo.has("data") -> jo.getJSONArray("data")
+                jo.has("models") -> jo.getJSONArray("models")
+                else -> JSONArray()
+            }
+            val out = mutableListOf<String>()
+            for (i in 0 until list.length()) {
+                val o = list.optJSONObject(i) ?: continue
+                val id = o.optString("id", "")
+                if (id.isNotEmpty()) out.add(id)
+            }
+            out
+        } catch (e: Exception) { emptyList() }
+    }
+
+    private fun discoverModels(p: Provider): List<String> {
+        val url = p.discoveryUrl ?: return emptyList()
+        val env = p.credentialEnv ?: return emptyList()
+        val key = Keys.get(env) ?: return emptyList()
+        val cached = discoveryCache[p.id]
+        if (cached != null && System.currentTimeMillis() - cached.first < DISCOVERY_TTL_MS) {
+            return cached.second
+        }
+        return try {
+            val req = Request.Builder().url(url)
+                .addHeader("Authorization", "Bearer $key")
+                .get().build()
+            val resp = client.newCall(req).execute()
+            val ids = parseModelIds(resp.body?.string() ?: "")
+            discoveryCache[p.id] = System.currentTimeMillis() to ids
+            ids
+        } catch (e: Exception) {
+            cached?.second ?: emptyList()
+        }
+    }
+
     fun candidateModels(p: Provider): List<String> {
-        val base = p.freeModels.toMutableList()
+        val discovered = discoverModels(p)
+        val base = if (discovered.isNotEmpty()) discovered.toMutableList()
+                   else p.freeModels.toMutableList()
         if (p.allow != null && base.isEmpty()) base += p.allow
-        return base.distinct()
+        val filtered = if (p.wholeCatalogIsFree) base
+                       else (p.deny ?: emptyList()).let { deny ->
+                           if (deny.isEmpty()) base else base.filter { m -> deny.none { pat -> globMatch(pat, m) } }
+                       }
+        return filtered.distinct()
     }
 
     fun resolve(modelField: String): List<Target> {
