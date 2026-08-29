@@ -163,6 +163,26 @@ class MainActivity : AppCompatActivity() {
             Keys.set(env, key)
             buildKeyRows()
         }
+        val dm = intent?.getStringExtra("default_model")
+        if (!dm.isNullOrEmpty()) {
+            prefs.edit().putString("default_model", dm).apply()
+            RouterService.engineRef?.defaultModel = dm
+        }
+        if (intent?.hasExtra("fr_enabled") == true) {
+            val en = intent.getBooleanExtra("fr_enabled", true)
+            prefs.edit().putBoolean("fr_enabled", en).apply()
+            RouterService.engineRef?.freeRouterEnabled = en
+        }
+        val dis = intent?.getStringExtra("disable_model")
+        if (!dis.isNullOrEmpty()) {
+            prefs.edit().putBoolean("m:" + dis, false).apply()
+            RouterService.engineRef?.modelEnabled?.set(dis, false)
+        }
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        applyDebugInjection(intent)
     }
 
     private fun scheduleRefresh() {
