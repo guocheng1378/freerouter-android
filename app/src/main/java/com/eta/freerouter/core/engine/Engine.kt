@@ -11,6 +11,7 @@ import com.eta.freerouter.core.state.HealthStatus
 import com.eta.freerouter.core.traffic.TrafficRecorder
 import com.eta.freerouter.core.transport.Response
 import com.eta.freerouter.core.watch.WatchScheduler
+import android.util.Log
 
 class FreeRouterEngine(
     catalogJson: String,
@@ -64,6 +65,9 @@ class FreeRouterEngine(
         return Response(404, """{"error":"model not found: $target"}""".toByteArray())
     }
 
-    fun start() { watch.start() }
+    fun start() {
+        try { runCycle(this, 30 * 60 * 1000L) } catch (e: Exception) { Log.e("FreeRouter", "initial discovery failed", e) }
+        watch.start()
+    }
     fun stop() { watch.stop() }
 }
