@@ -23,9 +23,23 @@
         "auth": "BEARER",
         "itemsPath": "data",
         "idPath": "id",
-        "deny": [],
-        "wholeCatalogIsFree": true,
-        "allow": []
+        "allow": [
+          "deepseek-v4-flash",
+          "deepseek-v4-flash-vision-exp"
+        ],
+        "deny": [
+          "gpt-*",
+          "claude-*",
+          "gemini-*",
+          "qwen*",
+          "glm-*",
+          "kimi-*",
+          "minimax-*",
+          "mimo-*",
+          "hy*",
+          "*embed*",
+          "*rerank*"
+        ]
       },
       "probe": {
         "enabled": true,
@@ -103,9 +117,7 @@
         "models": [
           "deepseek-chat",
           "deepseek-reasoner"
-        ],
-        "allow": [],
-        "deny": []
+        ]
       },
       "probe": {
         "enabled": true,
