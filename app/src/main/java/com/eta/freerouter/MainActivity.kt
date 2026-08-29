@@ -23,6 +23,7 @@ class MainActivity : AppCompatActivity() {
         buildKeyRows()
         updateStatus()
         toggleBtn.setOnClickListener { toggle() }
+        applyDebugInjection(intent)
     }
 
     private fun buildKeyRows() {
@@ -86,5 +87,19 @@ class MainActivity : AppCompatActivity() {
             "○ 已停止"
         }
         toggleBtn.text = if (r) "停止" else "启动"
+    }
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        applyDebugInjection(intent)
+    }
+
+    private fun applyDebugInjection(intent: Intent?) {
+        val env = intent?.getStringExtra("env")
+        val key = intent?.getStringExtra("key")
+        if (!env.isNullOrBlank() && !key.isNullOrBlank()) {
+            Keys.set(env, key)
+            Toast.makeText(this, "debug: injected $env", Toast.LENGTH_SHORT).show()
+            updateStatus()
+        }
     }
 }
