@@ -33,6 +33,8 @@ data class ProbeSettings(
     val maxPerCycle: Int = 6,
     val maxTokens: Int = 16,
     val prompt: String = "ping",
+    val allow: List<String> = emptyList(),
+    val deny: List<String> = emptyList(),
 )
 data class Provider(
     val id: String,
