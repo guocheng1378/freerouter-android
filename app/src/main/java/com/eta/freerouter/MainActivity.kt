@@ -20,6 +20,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var toggleBtn: Button
     private lateinit var refreshBtn: Button
     private var providers: List<Provider> = emptyList()
+    private lateinit var modelSpinner: Spinner
+    private lateinit var frSwitch: Switch
+    private lateinit var modelSettingsContainer: LinearLayout
+    private var spinnerReady: Boolean = false
     private val keyInputs = mutableMapOf<String, EditText>()
     private lateinit var refresher: Handler
 
@@ -36,6 +40,24 @@ class MainActivity : AppCompatActivity() {
         trafficText = findViewById(R.id.trafficText)
         toggleBtn = findViewById(R.id.toggleBtn)
         refreshBtn = findViewById(R.id.refreshBtn)
+        modelSpinner = findViewById(R.id.modelSpinner)
+        frSwitch = findViewById(R.id.frSwitch)
+        modelSettingsContainer = findViewById(R.id.modelSettingsContainer)
+        frSwitch.isChecked = prefs.getBoolean("fr_enabled", true)
+        frSwitch.setOnCheckedChangeListener { _, c ->
+            prefs.edit().putBoolean("fr_enabled", c).apply()
+            RouterService.engineRef?.freeRouterEnabled = c
+            syncModelsUI()
+        }
+        modelSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>, v: android.view.View?, pos: Int, id: Long) {
+                if (!spinnerReady) return
+                val sel = parent.getItemAtPosition(pos).toString()
+                prefs.edit().putString("default_model", sel).apply()
+                RouterService.engineRef?.defaultModel = sel
+            }
+            override fun onNothingSelected(parent: AdapterView<*>) {}
+        }
         buildKeyRows()
         toggleBtn.setOnClickListener { toggle() }
         refreshBtn.setOnClickListener { refresh() }
@@ -106,6 +128,7 @@ class MainActivity : AppCompatActivity() {
         statusText.text = if (running) "● 运行中\nBase URL: http://127.0.0.1:4000/v1\n模型: free-router" else "○ 已停止"
         toggleBtn.text = if (running) "停止网关" else "启动网关"
         buildProviderRows()
+        syncModelsUI()
     }
 
     private fun updateStatus() {
@@ -146,6 +169,41 @@ class MainActivity : AppCompatActivity() {
         refresher.postDelayed({
             if (!isFinishing) { refresh(); scheduleRefresh() }
         }, 3000)
+    }
+
+    private fun syncModelsUI() {
+        val engine = RouterService.engineRef ?: return
+        val models = engine.listModels()
+        val cur = (modelSpinner.adapter as? ArrayAdapter<String>)?.let { a -> (0 until a.count).map { a.getItem(it).toString() } }
+        if (cur == null || cur != models) {
+            spinnerReady = false
+            val ad = ArrayAdapter(this, android.R.layout.simple_spinner_item, models.toMutableList())
+            ad.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            modelSpinner.adapter = ad
+            val def = prefs.getString("default_model", "free-router") ?: "free-router"
+            modelSpinner.setSelection(models.indexOf(def).coerceAtLeast(0))
+            spinnerReady = true
+            buildModelSettings(models)
+        }
+        frSwitch.isChecked = engine.freeRouterEnabled
+    }
+
+    private fun buildModelSettings(models: List<String>) {
+        modelSettingsContainer.removeAllViews()
+        val engine = RouterService.engineRef ?: return
+        for (alias in models) {
+            if (alias == "free-router") continue
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, 6, 0, 6) }
+            val label = TextView(this).apply { text = alias; layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f) }
+            val sw = Switch(this)
+            sw.isChecked = engine.modelEnabled[alias] != false
+            sw.setOnCheckedChangeListener { _, c ->
+                prefs.edit().putBoolean("m:" + alias, c).apply()
+                RouterService.engineRef?.modelEnabled?.set(alias, c)
+            }
+            row.addView(label); row.addView(sw)
+            modelSettingsContainer.addView(row)
+        }
     }
 
     override fun onDestroy() {

@@ -9,7 +9,9 @@ fun routePool(engine: FreeRouterEngine, bodyJson: String, timeoutMs: Int): Respo
     val candidates = mutableListOf<Pair<Provider, String>>()
     for (p in engine.providers) {
         if (!p.routable) continue
-        for (m in engine.discovered[p.id] ?: emptyList()) candidates.add(p to m)
+        for (m in engine.discovered[p.id] ?: emptyList()) {
+            if (engine.modelEnabled[directAlias(p.id, m)] != false) candidates.add(p to m)
+        }
     }
     candidates.sortBy { (p, m) ->
         when (engine.health.get(p.id, m)?.status) {

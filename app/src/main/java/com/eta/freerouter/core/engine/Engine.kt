@@ -23,15 +23,18 @@ class FreeRouterEngine(
     val traffic = TrafficRecorder()
     val discovered = mutableMapOf<String, List<String>>()
     private val watch = WatchScheduler(10 * 60 * 1000L) { runCycle(this, 30 * 60 * 1000L) }
+    var defaultModel: String = POOL_ALIAS
+    var freeRouterEnabled: Boolean = true
+    val modelEnabled = mutableMapOf<String, Boolean>()
 
     fun listModels(): List<String> {
         val out = mutableListOf<String>()
         for (p in providers) {
             if (!p.routable) continue
             out.add(p.groupAlias)
-            discovered[p.id]?.forEach { out.add(directAlias(p.id, it)) }
+            discovered[p.id]?.forEach { if (modelEnabled[directAlias(p.id, it)] != false) out.add(directAlias(p.id, it)) }
         }
-        out.add(POOL_ALIAS)
+        if (freeRouterEnabled) out.add(POOL_ALIAS)
         return out
     }
 
@@ -43,8 +46,11 @@ class FreeRouterEngine(
     }
 
     fun routeChat(model: String, bodyJson: String, timeoutMs: Int = 90000): Response {
-        val target = model.ifBlank { POOL_ALIAS }
-        if (target == POOL_ALIAS) return routePool(this, bodyJson, timeoutMs)
+        val target = model.ifBlank { defaultModel }
+        if (target == POOL_ALIAS) {
+            if (!freeRouterEnabled) return Response(400, """{"error":"free-router disabled"}""".toByteArray())
+            return routePool(this, bodyJson, timeoutMs)
+        }
         if (target.startsWith("$DIRECT_NAMESPACE/")) {
             val parts = target.split("/", limit = 3)
             if (parts.size < 3) return Response(400, """{"error":"bad model"}""".toByteArray())

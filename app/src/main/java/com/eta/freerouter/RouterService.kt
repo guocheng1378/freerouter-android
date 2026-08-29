@@ -26,6 +26,10 @@ class RouterService : Service() {
                 }
             }
             engine = FreeRouterEngine(catalogJson, secrets)
+            val sp = getSharedPreferences("fr_state", MODE_PRIVATE)
+            engine!!.defaultModel = sp.getString("default_model", "free-router") ?: "free-router"
+            engine!!.freeRouterEnabled = sp.getBoolean("fr_enabled", true)
+            sp.all.forEach { (k, vv) -> if (k.startsWith("m:")) engine!!.modelEnabled[k.removePrefix("m:")] = (vv as? Boolean) ?: true }
             engine!!.start()
             gateway = LocalGateway(LocalGateway.PORT, engine!!).apply { start() }
             engineRef = engine
