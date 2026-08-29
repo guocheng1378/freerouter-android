@@ -3,6 +3,8 @@ package com.eta.freerouter
 import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import com.eta.freerouter.core.registry.Provider
@@ -19,6 +21,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var refreshBtn: Button
     private var providers: List<Provider> = emptyList()
     private val keyInputs = mutableMapOf<String, EditText>()
+    private lateinit var refresher: Handler
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,6 +42,8 @@ class MainActivity : AppCompatActivity() {
         applyDebugInjection(intent)
         updateStatus()
         buildProviderRows()
+        refresher = Handler(Looper.getMainLooper())
+        scheduleRefresh()
     }
 
     override fun onResume() {
@@ -135,5 +140,16 @@ class MainActivity : AppCompatActivity() {
             Keys.set(env, key)
             buildKeyRows()
         }
+    }
+
+    private fun scheduleRefresh() {
+        refresher.postDelayed({
+            if (!isFinishing) { refresh(); scheduleRefresh() }
+        }, 3000)
+    }
+
+    override fun onDestroy() {
+        refresher.removeCallbacksAndMessages(null)
+        super.onDestroy()
     }
 }
