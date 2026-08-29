@@ -1,87 +1,42 @@
 package com.eta.freerouter.core.probe
 
-import com.eta.freerouter.core.planning.directAlias
+import com.eta.freerouter.core.engine.Response
+import com.eta.freerouter.core.engine.Transport.request
 import com.eta.freerouter.core.registry.Provider
-import com.eta.freerouter.core.state.*
-import com.eta.freerouter.core.transport.*
+import com.eta.freerouter.core.state.HealthStatus
 
-const val MAX_DETAIL = 200
+object Probe {
+    private val PAID_HINTS = listOf(
+        "access_denied", "forbidden", "insufficient", "quota", "balance",
+        "credit", "deposit", "unlock", "premium", "payment", "expired", "not available"
+    )
 
-private val STATUS_OUTCOMES = mapOf(
-    401 to ProbeOutcome.AUTH,
-    402 to ProbeOutcome.EXHAUSTED,
-    403 to ProbeOutcome.AUTH,
-    404 to ProbeOutcome.MISSING,
-    429 to ProbeOutcome.THROTTLED,
-)
-
-private val KEYWORD_OUTCOMES = listOf(
-    ProbeOutcome.MISSING to listOf("model_not_found", "not found", "does not exist", "no such model", "unknown model", "decommissioned", "has been deprecated", "no longer available", "已下线", "不存在"),
-    ProbeOutcome.EXHAUSTED to listOf("insufficient", "quota", "out of credit", "balance", "exceeded your current", "余额", "额度"),
-    ProbeOutcome.THROTTLED to listOf("rate limit", "rate_limit", "too many requests", "请求过于频繁", "限流"),
-    ProbeOutcome.AUTH to listOf("invalid api key", "unauthorized", "authentication", "invalid token", "鉴权"),
-)
-
-private fun keywordOutcome(text: String): ProbeOutcome? {
-    val lower = text.lowercase()
-    for ((outcome, needles) in KEYWORD_OUTCOMES) {
-        if (needles.any { it in lower }) return outcome
+    fun probeOne(
+        provider: Provider,
+        modelId: String,
+        secrets: Map<String, String>,
+        timeoutMs: Int = 40000,
+    ): HealthStatus {
+        val base = provider.apiBase?.removeSuffix("/") ?: return HealthStatus.UNKNOWN
+        val url = "$base/chat/completions"
+        val key = secrets[provider.credential]?.trim() ?: ""
+        val headers = mutableMapOf("Content-Type" to "application/json")
+        if (key.isNotEmpty()) headers["Authorization"] = "Bearer $key"
+        val body = """{"model":"$modelId","messages":[{"role":"user","content":"ping"}],"max_tokens":16,"stream":false}"""
+        val resp = request(url, method = "POST", headers = headers, body = body, timeoutMs = timeoutMs)
+        return classify(resp.status, resp.body ?: "")
     }
-    return null
-}
 
-private val ERROR_PATHS = listOf("error.message", "message", "detail", "msg")
-
-private fun detailOf(response: Response): String {
-    val payload = response.json()
-    for (path in ERROR_PATHS) {
-        val message = asText(dig(payload, path))
-        if (message != null) return message.split(Regex("\\s+")).joinToString(" ").take(MAX_DETAIL)
-    }
-    return response.text.split(Regex("\\s+")).joinToString(" ").take(MAX_DETAIL)
-}
-
-fun outcomeFor(status: Int, detail: String): ProbeOutcome {
-    return STATUS_OUTCOMES[status] ?: keywordOutcome(detail) ?: ProbeOutcome.TRANSIENT
-}
-
-fun classify(response: Response): Pair<ProbeOutcome, String> {
-    val detail = detailOf(response)
-    if (response.ok) {
-        val choices = asItems(dig(response.json(), "choices"))
-        if (choices.isNotEmpty()) return ProbeOutcome.OK to "ok"
-        return ProbeOutcome.TRANSIENT to "200 but no choices: $detail"
-    }
-    return outcomeFor(response.status, detail) to "HTTP ${response.status}: $detail"
-}
-
-fun probeOne(
-    chatRequest: (alias: String, prompt: String, maxTokens: Int) -> Response,
-    provider: Provider,
-    modelId: String,
-): Pair<ProbeOutcome, String> {
-    val alias = directAlias(provider.id, modelId)
-    return classify(chatRequest(alias, provider.probe.prompt, provider.probe.maxTokens))
-}
-
-fun probeTargets(
-    state: HealthState,
-    provider: Provider,
-    now: Long,
-    recheckAfterMs: Long,
-    verifiedByTraffic: Collection<String> = emptyList(),
-): List<String> {
-    if (!provider.probe.enabled) return emptyList()
-    val unknown = mutableListOf<String>()
-    val due = mutableListOf<String>()
-    val stale = mutableListOf<String>()
-    for (health in state.all()) {
-        if (health.provider != provider.id || health.modelId in verifiedByTraffic) continue
-        when (health.status) {
-            HealthStatus.UNKNOWN -> unknown.add(health.modelId)
-            HealthStatus.QUARANTINED -> if (health.retryAfter == null || health.retryAfter!! <= now) due.add(health.modelId)
-            HealthStatus.HEALTHY -> if (health.lastOk == null || now - health.lastOk!! >= recheckAfterMs) stale.add(health.modelId)
+    fun classify(code: Int, body: String): HealthStatus {
+        val b = body.lowercase()
+        val paid = PAID_HINTS.any { it in b }
+        return when {
+            200 <= code && code < 300 -> HealthStatus.HEALTHY
+            401 == code || 403 == code -> if (paid) HealthStatus.QUARANTINED else HealthStatus.UNKNOWN
+            402 == code -> HealthStatus.QUARANTINED
+            429 == code -> if (paid) HealthStatus.QUARANTINED else HealthStatus.UNKNOWN
+            code in 400..499 -> if (paid) HealthStatus.QUARANTINED else HealthStatus.UNKNOWN
+            else -> HealthStatus.UNKNOWN
         }
     }
-    return (unknown.sorted() + due.sorted() + stale.sorted()).take(provider.probe.maxPerCycle)
 }

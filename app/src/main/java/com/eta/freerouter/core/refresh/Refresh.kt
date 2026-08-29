@@ -1,56 +1,36 @@
 package com.eta.freerouter.core.refresh
 
-import com.eta.freerouter.core.discovery.discover
+import com.eta.freerouter.core.discovery.Discovery
 import com.eta.freerouter.core.engine.FreeRouterEngine
-import com.eta.freerouter.core.engine.forwardChat
-import com.eta.freerouter.core.probe.*
-import com.eta.freerouter.core.registry.credentialsFor
+import com.eta.freerouter.core.engine.secretsFor
+import com.eta.freerouter.core.notify.Notify
+import com.eta.freerouter.core.probe.Probe
 import com.eta.freerouter.core.state.HealthStatus
-import com.eta.freerouter.core.state.ProbeOutcome
 
-data class CycleReport(
-    val discovered: Map<String, List<String>>,
-    val changes: List<String>,
-    val probed: Int,
-)
-
-fun runCycle(engine: FreeRouterEngine, recheckAfterMs: Long): CycleReport {
-    val now = System.currentTimeMillis()
-    val newDiscovered = mutableMapOf<String, List<String>>()
+fun runCycle(engine: FreeRouterEngine, recheckAfterMs: Long) {
     val changes = mutableListOf<String>()
-    var probed = 0
     for (provider in engine.providers) {
-        if (!provider.routable) continue
-        val secrets = credentialsFor(provider, engine.secrets)
-        val result = discover(provider, secrets)
-        if (!result.usable) {
-            changes.add("${provider.id}: discovery ${result.skipped ?: result.error}")
-            continue
+        val sec = engine.secretsFor(provider)
+        if (sec == null) { changes.add(provider.id + ": skipped (missing credentials)"); continue }
+        val result = Discovery.discover(provider, sec)
+        if (!result.usable) { changes.add(provider.id + ": discovery failed (" + result.reason + ")"); continue }
+        val prev = engine.discovered[provider.id] ?: emptyList()
+        if (prev != result.ids) {
+            engine.discovered[provider.id] = result.ids.toMutableList()
+            changes.add(provider.id + ": discovered " + result.ids.size + " models")
         }
-        val old = engine.discovered[provider.id] ?: emptyList()
-        if (old != result.models) {
-            changes.add("${provider.id}: ${old.size} -> ${result.models.size} models")
-        }
-        newDiscovered[provider.id] = result.models
-        for (modelId in result.models) engine.health.getOrCreate(provider.id, modelId)
-        val targets = probeTargets(engine.health, provider, now, recheckAfterMs)
-        for (modelId in targets) {
-            val outcome = probeOne({ alias, prompt, maxTokens ->
-                val body = """{"model":"$alias","messages":[{"role":"user","content":"$prompt"}],"max_tokens":$maxTokens,"stream":false}"""
-                engine.forwardProbe(alias, body)
-            }, provider, modelId)
-            probed++
-            val h = engine.health.getOrCreate(provider.id, modelId)
-            h.lastOutcome = outcome.first
-            h.detail = outcome.second
-            when (outcome.first) {
-                ProbeOutcome.OK -> { h.status = HealthStatus.HEALTHY; h.lastOk = now; h.retryAfter = null }
-                ProbeOutcome.TRANSIENT -> {}
-                else -> { h.status = HealthStatus.QUARANTINED; h.retryAfter = now + 10 * 60 * 1000 }
+        if (provider.probe.enabled) {
+            val needsProbe = result.ids.filter {
+                (engine.health.get(provider.id, it)?.status ?: HealthStatus.UNKNOWN) != HealthStatus.HEALTHY
             }
+            val capped = needsProbe.take(provider.probe.maxPerCycle)
+            for (m in capped) {
+                val h = Probe.probeOne(provider, m, sec)
+                engine.health.record(provider.id, m, h)
+                Thread.sleep(1500)
+            }
+            if (capped.isNotEmpty()) changes.add(provider.id + ": probed " + capped.size + " models")
         }
     }
-    engine.discovered.putAll(newDiscovered)
-    if (changes.isNotEmpty()) engine.notifier.notify("FreeRouter 发现变更", changes.joinToString("; "))
-    return CycleReport(newDiscovered, changes, probed)
+    if (changes.isNotEmpty()) Notify.push(changes.joinToString("\n"))
 }

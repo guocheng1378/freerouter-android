@@ -23,11 +23,6 @@
         "auth": "BEARER",
         "itemsPath": "data",
         "idPath": "id",
-        "allow": [
-          "deepseek-v4-flash",
-          "deepseek-v4-flash-vision-exp",
-          "deepseek-v4-pro"
-        ],
         "deny": [
           "gpt-*",
           "claude-*",
@@ -44,7 +39,7 @@
       },
       "probe": {
         "enabled": true,
-        "maxPerCycle": 4,
+        "maxPerCycle": 50,
         "maxTokens": 16,
         "prompt": "ping"
       }
