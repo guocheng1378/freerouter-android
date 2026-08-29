@@ -36,7 +36,8 @@
           "*embed*",
           "*rerank*"
         ],
-        "wholeCatalogIsFree": true
+        "wholeCatalogIsFree": true,
+        "allow": []
       },
       "probe": {
         "enabled": true,
