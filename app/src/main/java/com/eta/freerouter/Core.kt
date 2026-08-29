@@ -139,14 +139,20 @@ object Router {
     }
 
     fun candidateModels(p: Provider): List<String> {
+        val allow = p.allow
+        val deny = p.deny ?: emptyList()
         val discovered = discoverModels(p)
-        val base = if (discovered.isNotEmpty()) discovered.toMutableList()
-                   else p.freeModels.toMutableList()
-        if (p.allow != null && base.isEmpty()) base += p.allow
+        val base = if (discovered.isNotEmpty()) {
+            val s = if (!allow.isNullOrEmpty()) discovered.filter { allow.contains(it) } else discovered
+            s.toMutableList()
+        } else {
+            val fb = p.freeModels.toMutableList()
+            if (fb.isEmpty() && !allow.isNullOrEmpty()) fb += allow
+            fb
+        }
         val filtered = if (p.wholeCatalogIsFree) base
-                       else (p.deny ?: emptyList()).let { deny ->
-                           if (deny.isEmpty()) base else base.filter { m -> deny.none { pat -> globMatch(pat, m) } }
-                       }
+                       else if (deny.isEmpty()) base
+                       else base.filter { m -> deny.none { pat -> globMatch(pat, m) } }
         return filtered.distinct()
     }
 
