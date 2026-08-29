@@ -19,10 +19,18 @@ fun runCycle(engine: FreeRouterEngine, recheckAfterMs: Long) {
             changes.add(provider.id + ": discovered " + result.models.size + " models")
         }
         if (provider.probe.enabled) {
-            val needsProbe = result.models.filter {
-                (engine.health.get(provider.id, it)?.status ?: HealthStatus.UNKNOWN) != HealthStatus.HEALTHY
+            val toProbe = mutableListOf<String>()
+            for (m in result.models) {
+                val cur = engine.health.get(provider.id, m)?.status ?: HealthStatus.UNKNOWN
+                if (cur == HealthStatus.HEALTHY) continue
+                if (provider.probe.deny.any { glob(it, m) }) {
+                    engine.health.getOrCreate(provider.id, m).status = HealthStatus.QUARANTINED
+                    continue
+                }
+                if (provider.probe.allow.isNotEmpty() && !provider.probe.allow.any { glob(it, m) }) continue
+                toProbe.add(m)
             }
-            val capped = needsProbe.take(provider.probe.maxPerCycle)
+            val capped = toProbe.take(provider.probe.maxPerCycle)
             for (m in capped) {
                 val h = Probe.probeOne(provider, m, sec)
                 engine.health.getOrCreate(provider.id, m).status = h
@@ -32,4 +40,8 @@ fun runCycle(engine: FreeRouterEngine, recheckAfterMs: Long) {
         }
     }
     if (changes.isNotEmpty()) engine.notifier.notify("refresh", changes.joinToString("\n"))
+}
+
+private fun glob(pattern: String, text: String): Boolean {
+    return try { Regex(pattern.replace("*", ".*").replace("?", ".")).matches(text) } catch (_: Exception) { false }
 }
