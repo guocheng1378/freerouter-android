@@ -35,7 +35,8 @@
           "hy*",
           "*embed*",
           "*rerank*"
-        ]
+        ],
+        "wholeCatalogIsFree": true
       },
       "probe": {
         "enabled": true,
