@@ -66,7 +66,7 @@ class FreeRouterEngine(
     }
 
     fun start() {
-        try { runCycle(this, 30 * 60 * 1000L) } catch (e: Exception) { Log.e("FreeRouter", "initial discovery failed", e) }
+        Thread { try { runCycle(this, 30 * 60 * 1000L) } catch (e: Exception) { Log.e("FreeRouter", "initial discovery failed", e) } }.start()
         watch.start()
     }
     fun stop() { watch.stop() }
