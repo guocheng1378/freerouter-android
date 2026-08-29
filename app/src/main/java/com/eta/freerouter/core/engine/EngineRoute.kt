@@ -2,6 +2,7 @@ package com.eta.freerouter.core.engine
 
 import com.eta.freerouter.core.registry.Provider
 import com.eta.freerouter.core.state.HealthStatus
+import com.eta.freerouter.core.planning.directAlias
 import com.eta.freerouter.core.transport.Response
 
 fun routePool(engine: FreeRouterEngine, bodyJson: String, timeoutMs: Int): Response {

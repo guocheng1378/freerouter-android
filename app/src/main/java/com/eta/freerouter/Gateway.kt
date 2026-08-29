@@ -2,7 +2,7 @@ package com.eta.freerouter
 
 import android.util.Log
 import com.eta.freerouter.core.engine.FreeRouterEngine
-import com.eta.freerouter.core.transport.Response
+import com.eta.freerouter.core.transport.Response as EngineResponse
 import fi.iki.elonen.NanoHTTPD
 import org.json.JSONArray
 import org.json.JSONObject
@@ -34,7 +34,7 @@ class LocalGateway(private val port: Int, private val engine: FreeRouterEngine) 
             buf
         } else ByteArray(0)
         val reqModel = try { JSONObject(String(body, Charsets.UTF_8)).optString("model", "free-router") } catch (_: Exception) { "free-router" }
-        val resp: Response = engine.routeChat(reqModel, String(body, Charsets.UTF_8))
+        val resp: EngineResponse = engine.routeChat(reqModel, String(body, Charsets.UTF_8))
         return NanoHTTPD.newFixedLengthResponse(statusFromCode(resp.status), "application/json", resp.text)
     }
 }

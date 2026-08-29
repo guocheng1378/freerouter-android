@@ -6,6 +6,7 @@ import com.eta.freerouter.core.engine.forwardChat
 import com.eta.freerouter.core.probe.*
 import com.eta.freerouter.core.registry.credentialsFor
 import com.eta.freerouter.core.state.HealthStatus
+import com.eta.freerouter.core.state.ProbeOutcome
 
 data class CycleReport(
     val discovered: Map<String, List<String>>,
