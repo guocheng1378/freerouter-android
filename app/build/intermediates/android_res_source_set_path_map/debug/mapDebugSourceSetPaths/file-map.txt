@@ -1,8 +1,0 @@
-com.eta.freerouter.app-pngs-0 /workspace/freerouter_src/app/build/generated/res/pngs/debug
-com.eta.freerouter.app-updated_navigation_xml-1 /workspace/freerouter_src/app/build/generated/updated_navigation_xml/debug
-com.eta.freerouter.app-packageDebugResources-2 /workspace/freerouter_src/app/build/intermediates/incremental/debug/packageDebugResources/merged.dir
-com.eta.freerouter.app-packageDebugResources-3 /workspace/freerouter_src/app/build/intermediates/incremental/debug/packageDebugResources/stripped.dir
-com.eta.freerouter.app-debug-4 /workspace/freerouter_src/app/build/intermediates/merged_res/debug/mergeDebugResources
-com.eta.freerouter.app-debug-5 /workspace/freerouter_src/app/src/debug/res
-com.eta.freerouter.app-main-6 /workspace/freerouter_src/app/src/main/res
-gradleHome-0 /root/.gradle
