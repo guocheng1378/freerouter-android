@@ -1,13 +1,14 @@
 package com.eta.freerouter.core.engine
 
+import com.eta.freerouter.core.notify.Changelog
 import com.eta.freerouter.core.notify.LogNotifier
 import com.eta.freerouter.core.notify.Notifier
 import com.eta.freerouter.core.planning.*
 import com.eta.freerouter.core.refresh.runCycle
 import com.eta.freerouter.core.registry.Provider
 import com.eta.freerouter.core.registry.loadProviders
-import com.eta.freerouter.core.state.HealthState
 import com.eta.freerouter.core.state.HealthStatus
+import com.eta.freerouter.core.state.HealthState
 import com.eta.freerouter.core.traffic.TrafficRecorder
 import com.eta.freerouter.core.transport.Response
 import com.eta.freerouter.core.watch.WatchScheduler
@@ -22,6 +23,7 @@ class FreeRouterEngine(
     val health = HealthState()
     val traffic = TrafficRecorder()
     val discovered = mutableMapOf<String, List<String>>()
+    val changelog = Changelog()
     private val watch = WatchScheduler(10 * 60 * 1000L) { runCycle(this, 30 * 60 * 1000L) }
     var defaultModel: String = POOL_ALIAS
     var freeRouterEnabled: Boolean = true
@@ -32,7 +34,10 @@ class FreeRouterEngine(
         for (p in providers) {
             if (!p.routable) continue
             out.add(p.groupAlias)
-            discovered[p.id]?.forEach { if (modelEnabled[directAlias(p.id, it)] != false) out.add(directAlias(p.id, it)) }
+            discovered[p.id]?.forEach { m ->
+                val alias = directAlias(p.id, m)
+                if (modelEnabled[alias] != false && health.get(p.id, m)?.status != HealthStatus.QUARANTINED) out.add(alias)
+            }
         }
         if (freeRouterEnabled) out.add(POOL_ALIAS)
         return out
@@ -62,8 +67,10 @@ class FreeRouterEngine(
         val group = providers.firstOrNull { it.groupAlias == target }
         if (group != null) {
             for (m in discovered[group.id] ?: emptyList()) {
+                val alias = directAlias(group.id, m)
+                if (modelEnabled[alias] == false) continue
                 val r = forwardChat(group, m, bodyJson, secrets, timeoutMs)
-                traffic.record(group.id, directAlias(group.id, m), r.ok)
+                traffic.record(group.id, alias, r.ok)
                 if (r.ok) return r
             }
             return Response(502, """{"error":"provider ${group.id} all models failed"}""".toByteArray())

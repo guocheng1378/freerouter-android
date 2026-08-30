@@ -125,6 +125,19 @@
 
         <TextView
             android:id="@+id/trafficText"
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="变更日志"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:paddingTop="16dp" />
+
+        <LinearLayout
+            android:id="@+id/changelogContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:textSize="14sp"

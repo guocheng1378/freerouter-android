@@ -39,7 +39,14 @@ fun parseDiscovery(o: JSONObject): Discovery {
 }
 fun parseProbe(o: JSONObject?): ProbeSettings {
     if (o == null) return ProbeSettings()
-    return ProbeSettings(o.optBoolean("enabled", true), o.optInt("maxPerCycle", 6), o.optInt("maxTokens", 16), o.optString("prompt", "ping"))
+    return ProbeSettings(
+        enabled = o.optBoolean("enabled", true),
+        maxPerCycle = o.optInt("maxPerCycle", 6),
+        maxTokens = o.optInt("maxTokens", 16),
+        prompt = o.optString("prompt", "ping"),
+        allow = optList(o, "allow"),
+        deny = optList(o, "deny"),
+    )
 }
 fun parseExtraParams(o: JSONObject?): Map<String, String> {
     if (o == null) return emptyMap()

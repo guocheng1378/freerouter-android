@@ -9,12 +9,16 @@ import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import com.eta.freerouter.core.registry.Provider
 import com.eta.freerouter.core.registry.loadProviders
+import com.eta.freerouter.core.registry.Tier
 import com.eta.freerouter.core.state.HealthStatus
+import java.text.SimpleDateFormat
+import java.util.*
 
 class MainActivity : AppCompatActivity() {
     private lateinit var prefs: SharedPreferences
     private lateinit var keyContainer: LinearLayout
     private lateinit var providerContainer: LinearLayout
+    private lateinit var changelogContainer: LinearLayout
     private lateinit var statusText: TextView
     private lateinit var trafficText: TextView
     private lateinit var toggleBtn: Button
@@ -36,6 +40,7 @@ class MainActivity : AppCompatActivity() {
         providers = loadProviders(catalogJson)
         keyContainer = findViewById(R.id.keyContainer)
         providerContainer = findViewById(R.id.providerContainer)
+        changelogContainer = findViewById(R.id.changelogContainer)
         statusText = findViewById(R.id.statusText)
         trafficText = findViewById(R.id.trafficText)
         toggleBtn = findViewById(R.id.toggleBtn)
@@ -64,6 +69,7 @@ class MainActivity : AppCompatActivity() {
         applyDebugInjection(intent)
         updateStatus()
         buildProviderRows()
+        buildChangelog()
         refresher = Handler(Looper.getMainLooper())
         scheduleRefresh()
     }
@@ -71,6 +77,23 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         refresh()
+    }
+
+    private fun fmtRetry(ms: Long): String {
+        if (ms <= 0L) return ""
+        val rem = ms - System.currentTimeMillis()
+        if (rem <= 0) return ""
+        val min = (rem / 60000).toInt()
+        return " · 重试" + (if (min > 0) min.toString() + "分后" else "稍后")
+    }
+
+    private fun offerSummary(p: Provider): String {
+        val parts = mutableListOf<String>()
+        if (p.tier != Tier.FREE) parts.add("tier=" + p.tier)
+        p.offer.endsOn?.let { parts.add("活动至" + it) }
+        p.limits.rpm?.let { parts.add("rpm=" + it) }
+        if (p.freeBasis.isNotEmpty()) parts.add(p.freeBasis)
+        return if (parts.isEmpty()) "" else " · " + parts.joinToString(" ")
     }
 
     private fun buildKeyRows() {
@@ -102,8 +125,9 @@ class MainActivity : AppCompatActivity() {
         val engine = RouterService.engineRef
         for (p in providers) {
             val title = TextView(this).apply {
-                text = p.nameZh + " (" + p.id + ") · " + (if (p.routable) "routable" else p.status)
+                text = p.nameZh + " (" + p.id + ")" + (if (p.routable) " · routable" else " · " + p.status) + offerSummary(p)
                 setPadding(0, 12, 0, 4)
+                textSize = 14f
             }
             providerContainer.addView(title)
             val models = engine?.discovered?.get(p.id) ?: emptyList()
@@ -111,8 +135,14 @@ class MainActivity : AppCompatActivity() {
                 providerContainer.addView(TextView(this).apply { text = "  未发现模型（缺 key 或未启动）" })
             } else {
                 for (m in models) {
-                    val st = engine?.health?.get(p.id, m)?.status ?: HealthStatus.UNKNOWN
-                    providerContainer.addView(TextView(this).apply { text = "  • " + m + " [" + st + "]" })
+                    val h = engine?.health?.get(p.id, m)
+                    val st = h?.status ?: HealthStatus.UNKNOWN
+                    val retry = fmtRetry(h?.retryAfter ?: 0L)
+                    val detail = if (!h?.detail.isNullOrEmpty()) " · " + h?.detail else ""
+                    providerContainer.addView(TextView(this).apply {
+                        text = "  • " + m + " [" + st + "]" + detail + retry
+                        textSize = 12f
+                    })
                 }
             }
         }
@@ -128,6 +158,7 @@ class MainActivity : AppCompatActivity() {
         statusText.text = if (running) "● 运行中\nBase URL: http://127.0.0.1:4000/v1\n模型: free-router" else "○ 已停止"
         toggleBtn.text = if (running) "停止网关" else "启动网关"
         buildProviderRows()
+        buildChangelog()
         syncModelsUI()
     }
 
@@ -138,9 +169,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun saveKeys() {
-        for ((env, edit) in keyInputs) {
-            Keys.set(env, edit.text.toString().trim())
-        }
+        for ((env, edit) in keyInputs) Keys.set(env, edit.text.toString().trim())
     }
 
     private fun toggle() {
@@ -159,10 +188,7 @@ class MainActivity : AppCompatActivity() {
     private fun applyDebugInjection(intent: Intent?) {
         val env = intent?.getStringExtra("env")
         val key = intent?.getStringExtra("key")
-        if (!env.isNullOrEmpty() && !key.isNullOrEmpty()) {
-            Keys.set(env, key)
-            buildKeyRows()
-        }
+        if (!env.isNullOrEmpty() && !key.isNullOrEmpty()) { Keys.set(env, key); buildKeyRows() }
         val dm = intent?.getStringExtra("default_model")
         if (!dm.isNullOrEmpty()) {
             prefs.edit().putString("default_model", dm).apply()
@@ -186,9 +212,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun scheduleRefresh() {
-        refresher.postDelayed({
-            if (!isFinishing) { refresh(); scheduleRefresh() }
-        }, 3000)
+        refresher.postDelayed({ if (!isFinishing) { refresh(); scheduleRefresh() } }, 3000)
     }
 
     private fun syncModelsUI() {
@@ -223,6 +247,24 @@ class MainActivity : AppCompatActivity() {
             }
             row.addView(label); row.addView(sw)
             modelSettingsContainer.addView(row)
+        }
+    }
+
+    private fun buildChangelog() {
+        changelogContainer.removeAllViews()
+        val engine = RouterService.engineRef ?: return
+        val entries = engine.changelog.recent(30)
+        if (entries.isEmpty()) {
+            changelogContainer.addView(TextView(this).apply { text = "  （暂无变更）" })
+            return
+        }
+        val fmt = SimpleDateFormat("MM-dd HH:mm", Locale.US)
+        for (e in entries.reversed()) {
+            val ts = fmt.format(Date(e.ts))
+            changelogContainer.addView(TextView(this).apply {
+                text = "  [$ts] " + e.kind + " " + e.text
+                textSize = 12f
+            })
         }
     }
 
