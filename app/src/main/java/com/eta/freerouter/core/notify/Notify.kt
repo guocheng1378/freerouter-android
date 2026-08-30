@@ -21,6 +21,6 @@ class Changelog(private val cap: Int = 200) {
         deque.addLast(ChangeEntry(System.currentTimeMillis(), kind, text))
         while (deque.size > cap) deque.pollFirst()
     }
-    fun recent(n: Int = 50): List<ChangeEntry> = deque.takeLast(n)
+    fun recent(n: Int = 50): List<ChangeEntry> = deque.toList().takeLast(n)
     fun clear() = deque.clear()
 }

@@ -2,7 +2,7 @@ package com.eta.freerouter.core.refresh
 
 import com.eta.freerouter.core.discovery.discover
 import com.eta.freerouter.core.engine.FreeRouterEngine
-import com.eta.freerouter.core.probe.Probe
+import com.eta.freerouter.core.probe.probeOne
 import com.eta.freerouter.core.registry.credentialsFor
 import com.eta.freerouter.core.state.HealthStatus
 import com.eta.freerouter.core.state.HealthEvent
@@ -62,7 +62,7 @@ fun runCycle(engine: FreeRouterEngine, recheckAfterMs: Long) {
             }
             val capped = toProbe.take(provider.probe.maxPerCycle)
             for (m in capped) {
-                val r = Probe.probeOne(provider, m, sec)
+                val r = probeOne(provider, m, sec)
                 engine.health.recordProbe(provider.id, m, r.outcome, r.body)
                 Thread.sleep(1500)
             }
