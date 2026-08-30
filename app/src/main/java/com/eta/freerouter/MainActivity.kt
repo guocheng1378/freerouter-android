@@ -2,11 +2,13 @@ package com.eta.freerouter
 
 import android.content.Intent
 import android.content.SharedPreferences
+import android.graphics.Typeface
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import com.eta.freerouter.core.registry.Provider
 import com.eta.freerouter.core.registry.loadProviders
 import com.eta.freerouter.core.registry.Tier
@@ -108,6 +110,8 @@ class MainActivity : AppCompatActivity() {
             val label = TextView(this).apply {
                 text = p.nameZh
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                textSize = 14f
+                setTextColor(ContextCompat.getColor(this@MainActivity, R.color.card_title))
             }
             val edit = EditText(this).apply {
                 hint = env
@@ -125,14 +129,20 @@ class MainActivity : AppCompatActivity() {
         val engine = RouterService.engineRef
         for (p in providers) {
             val title = TextView(this).apply {
-                text = p.nameZh + " (" + p.id + ")" + (if (p.routable) " · routable" else " · " + p.status) + offerSummary(p)
+                text = p.nameZh + " (" + p.id + ")" + (if (p.routable) " · 可用" else " · " + p.status) + offerSummary(p)
                 setPadding(0, 12, 0, 4)
                 textSize = 14f
+                setTextColor(ContextCompat.getColor(this@MainActivity, R.color.card_title))
+                setTypeface(null, Typeface.BOLD)
             }
             providerContainer.addView(title)
             val models = engine?.discovered?.get(p.id) ?: emptyList()
             if (models.isEmpty()) {
-                providerContainer.addView(TextView(this).apply { text = "  未发现模型（缺 key 或未启动）" })
+                providerContainer.addView(TextView(this).apply {
+                    text = "  未发现模型（缺 key 或未启动）"
+                    textSize = 12f
+                    setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_secondary))
+                })
             } else {
                 for (m in models) {
                     val h = engine?.health?.get(p.id, m)
@@ -140,8 +150,10 @@ class MainActivity : AppCompatActivity() {
                     val retry = fmtRetry(h?.retryAfter ?: 0L)
                     val detail = if (!h?.detail.isNullOrEmpty()) " · " + h?.detail else ""
                     providerContainer.addView(TextView(this).apply {
-                        text = "  • " + m + " [" + st + "]" + detail + retry
+                        text = "● " + m + " [" + st + "]" + detail + retry
                         textSize = 12f
+                        setPadding(0, 2, 0, 2)
+                        setTextColor(ContextCompat.getColor(this@MainActivity, statusColor(st, h?.retryAfter ?: 0L)))
                     })
                 }
             }
@@ -238,7 +250,12 @@ class MainActivity : AppCompatActivity() {
         for (alias in models) {
             if (alias == "free-router") continue
             val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, 6, 0, 6) }
-            val label = TextView(this).apply { text = alias; layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f) }
+            val label = TextView(this).apply {
+                text = alias
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                textSize = 13f
+                setTextColor(ContextCompat.getColor(this@MainActivity, R.color.card_title))
+            }
             val sw = Switch(this)
             sw.isChecked = engine.modelEnabled[alias] != false
             sw.setOnCheckedChangeListener { _, c ->
@@ -255,17 +272,44 @@ class MainActivity : AppCompatActivity() {
         val engine = RouterService.engineRef ?: return
         val entries = engine.changelog.recent(30)
         if (entries.isEmpty()) {
-            changelogContainer.addView(TextView(this).apply { text = "  （暂无变更）" })
+            changelogContainer.addView(TextView(this).apply {
+                text = "  （暂无变更）"
+                textSize = 12f
+                setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_secondary))
+            })
             return
         }
         val fmt = SimpleDateFormat("MM-dd HH:mm", Locale.US)
         for (e in entries.reversed()) {
             val ts = fmt.format(Date(e.ts))
             changelogContainer.addView(TextView(this).apply {
-                text = "  [$ts] " + e.kind + " " + e.text
+                text = "  [" + ts + "] " + e.kind + " " + e.text
                 textSize = 12f
+                setPadding(0, 2, 0, 2)
+                setTextColor(ContextCompat.getColor(this@MainActivity, changelogColor(e.kind)))
             })
         }
+    }
+
+    private fun statusColor(status: HealthStatus, retryAfter: Long): Int {
+        val now = System.currentTimeMillis()
+        val c = when {
+            status == HealthStatus.HEALTHY -> R.color.status_healthy
+            status == HealthStatus.QUARANTINED -> R.color.status_quarantined
+            retryAfter > now -> R.color.status_warn
+            else -> R.color.status_unknown
+        }
+        return ContextCompat.getColor(this, c)
+    }
+
+    private fun changelogColor(kind: String): Int {
+        val c = when {
+            kind.contains("QUARANTINED") || kind.contains("REMOVED") || kind.contains("EXPIRED") -> R.color.status_quarantined
+            kind.contains("ADDED") || kind.contains("REVIVED") || kind.contains("TRAFFIC_OK") -> R.color.status_healthy
+            kind.contains("OFFER") -> R.color.status_warn
+            else -> R.color.text_secondary
+        }
+        return ContextCompat.getColor(this, c)
     }
 
     override fun onDestroy() {
