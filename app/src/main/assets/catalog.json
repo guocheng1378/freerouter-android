@@ -1,22 +1,31 @@
 {
-  "version": "1.0",
+  "version": null,
   "providers": [
     {
       "id": "b-ai",
       "name": "B.AI",
       "nameZh": "B.AI",
       "status": "ACTIVE",
-      "tier": "TRIAL",
+      "tier": "OFFER",
       "region": "global",
       "credential": "B_AI_API_KEY",
       "litellmPrefix": "openai",
       "apiBase": "https://api.b.ai/v1",
       "docsUrl": "https://docs.b.ai",
       "consoleUrl": "https://b.ai",
+      "referralUrl": "https://chat.b.ai/chat?invite_code=H82845",
+      "referralNote": "被邀请人注册可领 30 万积分（官方仅公布受邀方奖励，邀请方奖励未说明）",
       "summary": "DeepSeek-V4-Flash 系列限时 0 Credits 不限量",
-      "freeBasis": "官方活动仅 DeepSeek-V4-Flash 系列 0 Credits 不限量",
+      "freeBasis": "官方活动仅 DeepSeek-V4-Flash 系列 0 Credits 不限量。B.AI 是聚合转售平台，同一 /models 目录里还有 GPT、Claude、Gemini 等付费模型，因此只按 allow 白名单接入，绝不整目录信任",
       "freeBasisChecked": "2026-08-25",
       "maxModels": 10,
+      "limits": {
+        "note": "需要在账户中保留少量 Credits 用于身份校验；活动随时可能调整"
+      },
+      "offer": {
+        "startsOn": "2026-08-17",
+        "note": "DeepSeek-V4-Flash（含 Vision 实验版）0 Credits 不限量"
+      },
       "discovery": {
         "mode": "LISTING",
         "url": "https://api.b.ai/v1/models",
@@ -42,24 +51,545 @@
         ]
       },
       "probe": {
-        "enabled": true,
-        "maxPerCycle": 50,
-        "maxTokens": 16,
-        "prompt": "ping",
+        "maxPerCycle": 4
+      }
+    },
+    {
+      "id": "cerebras",
+      "name": "Cerebras",
+      "nameZh": "Cerebras",
+      "status": "ACTIVE",
+      "tier": "FREE",
+      "region": "global",
+      "credential": "CEREBRAS_API_KEY",
+      "litellmPrefix": "cerebras",
+      "docsUrl": "https://inference-docs.cerebras.ai/introduction",
+      "consoleUrl": "https://cloud.cerebras.ai/platform/apikeys",
+      "summary": "Llama、Qwen 等高速推理",
+      "freeBasis": "免费层按速率限制开放账号可见的全部推理模型；目录只返回该账号有权限的模型，无权限的会在探测时被 402 拦下，不会进池",
+      "freeBasisChecked": "2026-08-25",
+      "maxModels": 15,
+      "limits": {
+        "rpm": 30,
+        "note": "每日约 100 万 Token。若探测返回 402 Payment required，说明该账号未开通免费层，去 https://cloud.cerebras.ai 的 billing 页确认套餐"
+      },
+      "discovery": {
+        "mode": "LISTING",
+        "url": "https://api.cerebras.ai/v1/models",
+        "auth": "BEARER",
+        "itemsPath": "data",
+        "wholeCatalogIsFree": true,
+        "idPath": "id",
+        "deny": [
+          "*whisper*",
+          "*embed*"
+        ]
+      },
+      "probe": {
+        "maxPerCycle": 5
+      }
+    },
+    {
+      "id": "cloudflare",
+      "name": "Cloudflare Workers AI",
+      "nameZh": "Cloudflare Workers AI",
+      "status": "ACTIVE",
+      "tier": "FREE",
+      "region": "global",
+      "credential": "CLOUDFLARE_API_KEY",
+      "extraCredentials": [
+        "CLOUDFLARE_ACCOUNT_ID"
+      ],
+      "litellmPrefix": "cloudflare",
+      "docsUrl": "https://developers.cloudflare.com/workers-ai/platform/pricing/",
+      "consoleUrl": "https://dash.cloudflare.com/profile/api-tokens",
+      "summary": "Llama、Qwen、Mistral 等 50+ 模型",
+      "freeBasis": "每日 10,000 Neurons 免费额度，覆盖目录中的文本生成模型",
+      "freeBasisChecked": "2026-08-25",
+      "maxModels": 15,
+      "limits": {
+        "note": "每天 10,000 Neurons 为账号共享额度"
+      },
+      "discovery": {
+        "mode": "LISTING",
+        "url": "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/models/search?search=Text+Generation",
+        "auth": "BEARER",
+        "itemsPath": "result",
+        "wholeCatalogIsFree": true,
+        "idPath": "name",
+        "deny": [
+          "*guard*",
+          "*embed*",
+          "*lora*"
+        ]
+      },
+      "probe": {
+        "maxPerCycle": 5
+      }
+    },
+    {
+      "id": "cohere",
+      "name": "Cohere",
+      "nameZh": "Cohere",
+      "status": "ACTIVE",
+      "tier": "FREE",
+      "region": "global",
+      "credential": "COHERE_API_KEY",
+      "litellmPrefix": "cohere_chat",
+      "docsUrl": "https://docs.cohere.com/docs/rate-limits",
+      "consoleUrl": "https://dashboard.cohere.com/api-keys",
+      "summary": "Command 系列（仅限非商业用途）",
+      "freeBasis": "Trial Key 免费调用 Command 系列，仅限非商业用途",
+      "freeBasisChecked": "2026-08-25",
+      "maxModels": 10,
+      "limits": {
+        "rpm": 20,
+        "rpd": 33,
+        "note": "官方限额是约 1000 次/月，这里折算成每天约 33 次填进 rpd，便于探测预算体检"
+      },
+      "discovery": {
+        "mode": "LISTING",
+        "url": "https://api.cohere.com/v1/models?endpoint=chat&page_size=200",
+        "auth": "BEARER",
+        "itemsPath": "models",
+        "wholeCatalogIsFree": true,
+        "idPath": "name",
+        "deny": [
+          "*embed*",
+          "*rerank*"
+        ]
+      },
+      "probe": {
+        "maxPerCycle": 1
+      }
+    },
+    {
+      "id": "comate",
+      "name": "Baidu Comate",
+      "nameZh": "百度文心快码 Comate",
+      "status": "WATCH",
+      "tier": "OFFER",
+      "region": "cn",
+      "litellmPrefix": "openai",
+      "docsUrl": "https://comate.baidu.com/",
+      "summary": "文心快码不限量 Token（仅 IDE 插件内可用）",
+      "freeBasis": "测试版活动提供不限量 Token，但只在 Comate Auto 邀测版客户端内可用，没有公开的 OpenAI 兼容 API，因此只跟踪活动到期、不接入路由",
+      "freeBasisChecked": "2026-08-25",
+      "offer": {
+        "endsOn": "2026-09-24",
+        "note": "注册得 7 天，邀请好友最高约 37 天；正式版不参与"
+      },
+      "discovery": {
+        "mode": "STATIC",
+        "models": []
+      },
+      "probe": {
+        "enabled": false
+      }
+    },
+    {
+      "id": "dashscope",
+      "name": "Alibaba DashScope",
+      "nameZh": "阿里云百炼 (DashScope)",
+      "status": "ACTIVE",
+      "tier": "TRIAL",
+      "region": "cn",
+      "credential": "DASHSCOPE_API_KEY",
+      "litellmPrefix": "dashscope",
+      "docsUrl": "https://help.aliyun.com/zh/model-studio/models",
+      "consoleUrl": "https://bailian.console.aliyun.com/?tab=model#/api-key",
+      "summary": "通义千问 Qwen-Turbo / Plus / Flash",
+      "freeBasis": "新用户各模型独立赠送百万级 Token，通常 90 天有效；额度用尽后探测会自动隔离",
+      "freeBasisChecked": "2026-08-25",
+      "maxModels": 10,
+      "limits": {
+        "note": "需要实名认证；赠送额度到期后模型会被探测判定为 exhausted"
+      },
+      "discovery": {
+        "mode": "STATIC",
+        "models": [
+          "qwen-turbo",
+          "qwen-plus",
+          "qwen-flash"
+        ]
+      },
+      "probe": {
+        "maxPerCycle": 4
+      }
+    },
+    {
+      "id": "deepseek",
+      "name": "DeepSeek",
+      "nameZh": "DeepSeek 开放平台",
+      "status": "ACTIVE",
+      "tier": "TRIAL",
+      "region": "cn",
+      "credential": "DEEPSEEK_API_KEY",
+      "litellmPrefix": "deepseek",
+      "docsUrl": "https://api-docs.deepseek.com/zh-cn/",
+      "consoleUrl": "https://platform.deepseek.com/api_keys",
+      "summary": "DeepSeek-V3 与 R1 推理模型",
+      "freeBasis": "新用户注册赠送体验额度；额度用尽后探测会自动隔离该平台",
+      "freeBasisChecked": "2026-08-25",
+      "maxModels": 5,
+      "limits": {
+        "note": "赠送额度通常在注册后 30 天内有效"
+      },
+      "discovery": {
+        "mode": "STATIC",
+        "models": [
+          "deepseek-chat",
+          "deepseek-reasoner"
+        ]
+      },
+      "probe": {
+        "maxPerCycle": 2
+      }
+    },
+    {
+      "id": "gemini",
+      "name": "Google AI Studio",
+      "nameZh": "Google AI Studio (Gemini)",
+      "status": "ACTIVE",
+      "tier": "FREE",
+      "region": "global",
+      "credential": "GEMINI_API_KEY",
+      "litellmPrefix": "gemini",
+      "docsUrl": "https://ai.google.dev/gemini-api/docs/rate-limits",
+      "consoleUrl": "https://aistudio.google.com/apikey",
+      "summary": "Gemini Flash 与 Gemma 系列",
+      "freeBasis": "Flash 与 Gemma 系列在免费层开放；Pro 与预览模型不稳定，由 deny 规则排除",
+      "freeBasisChecked": "2026-08-25",
+      "maxModels": 12,
+      "limits": {
+        "rpm": 15,
+        "rpd": 1500,
+        "note": "各模型限额不同；欧盟、英国、瑞士可能没有免费层，且免费层数据可能用于训练"
+      },
+      "discovery": {
+        "mode": "LISTING",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models",
+        "auth": "QUERY_KEY",
+        "itemsPath": "models",
+        "idPath": "name",
+        "idStripPrefix": "models/",
         "allow": [
-          "deepseek-*"
+          "*flash*",
+          "gemma-*"
         ],
         "deny": [
-          "gpt-*",
-          "claude-*",
-          "gemini-*",
-          "qwen*",
-          "glm-*",
-          "kimi-*",
-          "minimax-*",
-          "mimo-*",
-          "hy*"
+          "*embedding*",
+          "*image*",
+          "*tts*",
+          "*live*",
+          "*native-audio*",
+          "*-exp*",
+          "*preview*",
+          "*learnlm*",
+          "*aqa*"
         ]
+      },
+      "probe": {
+        "maxPerCycle": 5
+      }
+    },
+    {
+      "id": "github-models",
+      "name": "GitHub Models",
+      "nameZh": "GitHub Models",
+      "status": "RETIRED",
+      "tier": "FREE",
+      "region": "global",
+      "litellmPrefix": "github",
+      "docsUrl": "https://github.blog/changelog/2026-07-30-github-models-is-now-retired/",
+      "summary": "曾提供 GPT-4o、Llama、DeepSeek 等原型额度",
+      "freeBasis": "曾提供 GPT-4o、Llama、DeepSeek 等原型额度，现已下线",
+      "freeBasisChecked": "2026-08-25",
+      "retiredOn": "2026-07-30",
+      "retirementNote": "GitHub Models 已于 2026-07-30 完全退役，playground、模型目录、推理 API 和 BYOK 全部关闭，官方引导迁移到 Azure AI Foundry。调研文档中这一条已过期。",
+      "discovery": {
+        "mode": "STATIC",
+        "models": []
+      },
+      "probe": {
+        "enabled": false
+      }
+    },
+    {
+      "id": "groq",
+      "name": "Groq",
+      "nameZh": "Groq",
+      "status": "ACTIVE",
+      "tier": "FREE",
+      "region": "global",
+      "credential": "GROQ_API_KEY",
+      "litellmPrefix": "groq",
+      "docsUrl": "https://console.groq.com/docs/models",
+      "consoleUrl": "https://console.groq.com/keys",
+      "summary": "Llama、Qwen 等全系模型，LPU 超高速推理",
+      "freeBasis": "免费层按速率限制开放全部对话模型；deny 规则排除语音与安全审核模型",
+      "freeBasisChecked": "2026-08-25",
+      "maxModels": 20,
+      "limits": {
+        "rpm": 30,
+        "rpd": 14400,
+        "note": "各模型 RPD 从 1000 到 14400 不等"
+      },
+      "discovery": {
+        "mode": "LISTING",
+        "url": "https://api.groq.com/openai/v1/models",
+        "auth": "BEARER",
+        "itemsPath": "data",
+        "wholeCatalogIsFree": true,
+        "idPath": "id",
+        "deny": [
+          "*whisper*",
+          "*tts*",
+          "*guard*",
+          "playai*",
+          "*prompt-guard*"
+        ]
+      },
+      "probe": {
+        "maxPerCycle": 6
+      }
+    },
+    {
+      "id": "huggingface",
+      "name": "Hugging Face Inference",
+      "nameZh": "Hugging Face 推理",
+      "status": "PAUSED",
+      "tier": "TRIAL",
+      "region": "global",
+      "credential": "HUGGINGFACE_API_KEY",
+      "litellmPrefix": "huggingface",
+      "docsUrl": "https://huggingface.co/docs/inference-providers/en/pricing",
+      "consoleUrl": "https://huggingface.co/settings/tokens",
+      "summary": "数千开源模型（需按 provider 段指定）",
+      "freeBasis": "每月少量免费额度；Inference Providers 的模型标识需要带上具体的 provider 段（例如 together/…），无法用统一规则自动发现",
+      "freeBasisChecked": "2026-08-25",
+      "maxModels": 5,
+      "limits": {
+        "note": "每月约 0.10 美元额度，超出后按量计费"
+      },
+      "discovery": {
+        "mode": "STATIC",
+        "models": []
+      },
+      "probe": {
+        "enabled": false
+      }
+    },
+    {
+      "id": "hunyuan",
+      "name": "Tencent Hunyuan",
+      "nameZh": "腾讯混元",
+      "status": "ACTIVE",
+      "tier": "TRIAL",
+      "region": "cn",
+      "credential": "HUNYUAN_API_KEY",
+      "litellmPrefix": "openai",
+      "apiBase": "https://api.hunyuan.cloud.tencent.com/v1",
+      "docsUrl": "https://cloud.tencent.com/document/product/1729",
+      "consoleUrl": "https://console.cloud.tencent.com/hunyuan/api-key",
+      "summary": "腾讯混元 Lite / Turbo",
+      "freeBasis": "Lite 系列曾长期免费，其余模型按新用户赠送额度计费；实际可用性以探测结果为准",
+      "freeBasisChecked": "2026-08-25",
+      "maxModels": 6,
+      "limits": {
+        "note": "需要开通混元大模型服务"
+      },
+      "discovery": {
+        "mode": "STATIC",
+        "models": [
+          "hunyuan-lite",
+          "hunyuan-turbos-latest"
+        ]
+      },
+      "probe": {
+        "maxPerCycle": 3
+      }
+    },
+    {
+      "id": "mistral",
+      "name": "Mistral AI",
+      "nameZh": "Mistral AI",
+      "status": "ACTIVE",
+      "tier": "FREE",
+      "region": "global",
+      "credential": "MISTRAL_API_KEY",
+      "litellmPrefix": "mistral",
+      "docsUrl": "https://docs.mistral.ai/getting-started/models/models_overview/",
+      "consoleUrl": "https://console.mistral.ai/api-keys",
+      "summary": "Mistral Small/Large、Codestral 等全系文本模型",
+      "freeBasis": "实验套餐（Experiment plan）按速率限制免费开放文本模型",
+      "freeBasisChecked": "2026-08-25",
+      "maxModels": 15,
+      "limits": {
+        "rpm": 60,
+        "note": "约 1 RPS，每月约 10 亿 Token"
+      },
+      "discovery": {
+        "mode": "LISTING",
+        "url": "https://api.mistral.ai/v1/models",
+        "auth": "BEARER",
+        "itemsPath": "data",
+        "wholeCatalogIsFree": true,
+        "idPath": "id",
+        "deny": [
+          "*embed*",
+          "*ocr*",
+          "*moderation*",
+          "*voxtral*",
+          "*transcribe*"
+        ]
+      },
+      "probe": {
+        "maxPerCycle": 5
+      }
+    },
+    {
+      "id": "modelscope",
+      "name": "ModelScope",
+      "nameZh": "魔搭社区 ModelScope",
+      "status": "ACTIVE",
+      "tier": "FREE",
+      "region": "cn",
+      "credential": "MODELSCOPE_API_KEY",
+      "litellmPrefix": "modelscope",
+      "docsUrl": "https://modelscope.cn/docs/model-service/API-Inference/intro",
+      "consoleUrl": "https://modelscope.cn/my/myaccesstoken",
+      "referralUrl": "https://modelscope.cn/register?inviteCode=MarkWave&invitorName=MarkWave",
+      "referralNote": "双方各得魔方（ModelScope 平台积分），注册即得无需充值",
+      "summary": "Qwen3、DeepSeek、GLM 等 25 个开源模型免费推理",
+      "freeBasis": "注册用户免费推理额度，模型目录公开可查；deny 规则排除非对话模态",
+      "freeBasisChecked": "2026-08-25",
+      "maxModels": 25,
+      "extraParamsOverrides": [
+        {
+          "match": [
+            "qwen/qwen3-8b",
+            "qwen/qwen3-14b",
+            "qwen/qwen3-30b-a3b",
+            "paddlepaddle/ernie-4.5-*-pt",
+            "shanghai_ai_laboratory/intern-s1",
+            "shanghai_ai_laboratory/intern-s1-mini",
+            "medaibase/antangelmed"
+          ],
+          "params": {
+            "enable_thinking": false
+          }
+        }
+      ],
+      "limits": {
+        "rpd": 2000,
+        "note": "单模型约 500 次/日。**必须先绑定阿里云账号**，否则所有调用返回 401；绑定入口 https://modelscope.cn/my/settings/account"
+      },
+      "discovery": {
+        "mode": "LISTING",
+        "url": "https://api-inference.modelscope.cn/v1/models",
+        "auth": "NONE",
+        "itemsPath": "data",
+        "wholeCatalogIsFree": true,
+        "idPath": "id",
+        "deny": [
+          "*-vl-*",
+          "*-vl",
+          "*image*",
+          "*video*",
+          "*audio*",
+          "*omni*",
+          "*embedding*",
+          "*rerank*",
+          "*ocr*",
+          "*internvl*",
+          "*-edit"
+        ]
+      },
+      "probe": {
+        "maxPerCycle": 6
+      }
+    },
+    {
+      "id": "moonshot",
+      "name": "Moonshot AI",
+      "nameZh": "月之暗面 Kimi",
+      "status": "ACTIVE",
+      "tier": "TRIAL",
+      "region": "cn",
+      "credential": "MOONSHOT_API_KEY",
+      "litellmPrefix": "moonshot",
+      "docsUrl": "https://platform.moonshot.cn/docs/intro",
+      "consoleUrl": "https://platform.moonshot.cn/console/api-keys",
+      "summary": "Kimi 长文本模型",
+      "freeBasis": "新用户注册赠送体验额度；额度用尽后探测会自动隔离",
+      "freeBasisChecked": "2026-08-25",
+      "maxModels": 6,
+      "limits": {
+        "note": "速率与并发按账户等级浮动"
+      },
+      "discovery": {
+        "mode": "STATIC",
+        "models": [
+          "moonshot-v1-8k",
+          "moonshot-v1-32k",
+          "kimi-latest"
+        ]
+      },
+      "probe": {
+        "maxPerCycle": 3
+      }
+    },
+    {
+      "id": "nvidia-nim",
+      "name": "NVIDIA NIM",
+      "nameZh": "NVIDIA NIM",
+      "status": "ACTIVE",
+      "tier": "FREE",
+      "region": "global",
+      "credential": "NVIDIA_NIM_API_KEY",
+      "litellmPrefix": "nvidia_nim",
+      "docsUrl": "https://build.nvidia.com/models",
+      "consoleUrl": "https://build.nvidia.com/settings/api-keys",
+      "summary": "Llama、Gemma、Mistral 等 100+ 开源模型",
+      "freeBasis": "开发者计划体验额度，模型目录公开可查；allow/deny 规则只保留对话类模型",
+      "freeBasisChecked": "2026-08-25",
+      "maxModels": 25,
+      "limits": {
+        "rpm": 40,
+        "note": "需要邮箱注册并完成手机验证"
+      },
+      "discovery": {
+        "mode": "LISTING",
+        "url": "https://integrate.api.nvidia.com/v1/models",
+        "auth": "NONE",
+        "itemsPath": "data",
+        "idPath": "id",
+        "allow": [
+          "*instruct*",
+          "*-it",
+          "*chat*"
+        ],
+        "deny": [
+          "*embed*",
+          "*rerank*",
+          "*bge*",
+          "*guard*",
+          "*safety*",
+          "*reward*",
+          "*ocr*",
+          "*-vl*",
+          "*vision*",
+          "*diffusion*",
+          "*image*",
+          "*asr*",
+          "*tts*",
+          "*riva*",
+          "*paddle*"
+        ]
+      },
+      "probe": {
+        "maxPerCycle": 6
       }
     },
     {
@@ -70,60 +600,305 @@
       "tier": "FREE",
       "region": "global",
       "credential": "OPENROUTER_API_KEY",
-      "litellmPrefix": "openai",
-      "apiBase": "https://openrouter.ai/api/v1",
+      "litellmPrefix": "openrouter",
       "docsUrl": "https://openrouter.ai/docs",
-      "consoleUrl": "https://openrouter.ai",
-      "summary": "多模型聚合，含 :free 免费模型",
-      "freeBasis": "openrouter 免费层 :free 模型",
+      "consoleUrl": "https://openrouter.ai/settings/keys",
+      "summary": "20+ 个 :free 后缀模型，DeepSeek/Gemma/Nemotron 等",
+      "freeBasis": "目录返回的 pricing.prompt 与 pricing.completion 同时为 0，且输出模态只有 text（排除按秒计费的音视频生成模型）",
       "freeBasisChecked": "2026-08-25",
-      "maxModels": 20,
+      "maxModels": 25,
+      "limits": {
+        "rpm": 20,
+        "rpd": 50,
+        "note": "累计充值满 10 美元后约升至 1000 RPD"
+      },
+      "discovery": {
+        "mode": "PRICED_CATALOG",
+        "url": "https://openrouter.ai/api/v1/models",
+        "auth": "NONE",
+        "itemsPath": "data",
+        "idPath": "id",
+        "promptPricePath": "pricing.prompt",
+        "completionPricePath": "pricing.completion",
+        "inputModalitiesPath": "architecture.input_modalities",
+        "outputModalitiesPath": "architecture.output_modalities",
+        "requireTextIo": true,
+        "denyOutputModalities": [
+          "audio",
+          "image",
+          "video"
+        ],
+        "deny": [
+          "*-exp:free",
+          "*-exp-*:free",
+          "openrouter/auto",
+          "*:online",
+          "*content-safety*",
+          "*guard*",
+          "*-moderation*"
+        ],
+        "extraModels": [
+          "openrouter/free"
+        ]
+      },
+      "probe": {
+        "maxPerCycle": 2
+      }
+    },
+    {
+      "id": "qianfan",
+      "name": "Baidu Qianfan",
+      "nameZh": "百度千帆",
+      "status": "ACTIVE",
+      "tier": "FREE",
+      "region": "cn",
+      "credential": "QIANFAN_API_KEY",
+      "litellmPrefix": "openai",
+      "apiBase": "https://qianfan.baidubce.com/v2",
+      "docsUrl": "https://cloud.baidu.com/doc/qianfan-api/index.html",
+      "consoleUrl": "https://console.bce.baidu.com/iam/#/iam/apikey/list",
+      "summary": "ERNIE Speed / Lite / Tiny 永久免费不限量",
+      "freeBasis": "ERNIE 轻量系列（Speed / Lite / Tiny）官方标注永久免费不限量",
+      "freeBasisChecked": "2026-08-25",
+      "maxModels": 10,
+      "limits": {
+        "note": "有 QPS 限制，需要完成实名认证"
+      },
+      "discovery": {
+        "mode": "STATIC",
+        "models": [
+          "ernie-speed-8k",
+          "ernie-speed-128k",
+          "ernie-speed-pro-128k",
+          "ernie-lite-8k",
+          "ernie-lite-pro-128k",
+          "ernie-tiny-8k"
+        ]
+      },
+      "probe": {
+        "maxPerCycle": 6
+      }
+    },
+    {
+      "id": "siliconflow",
+      "name": "SiliconFlow",
+      "nameZh": "硅基流动 SiliconFlow",
+      "status": "ACTIVE",
+      "tier": "FREE",
+      "region": "cn",
+      "credential": "SILICONFLOW_API_KEY",
+      "litellmPrefix": "openai",
+      "apiBase": "https://api.siliconflow.cn/v1",
+      "docsUrl": "https://docs.siliconflow.cn/cn/userguide/quickstart",
+      "consoleUrl": "https://cloud.siliconflow.cn/account/ak",
+      "referralUrl": "https://cloud.siliconflow.cn/i/CuI9M5Ht",
+      "referralNote": "双方各得 2000 万 tokens（约 ¥14 平台额度，不可提现）",
+      "summary": "Qwen3-8B、GLM-4-9B 等 9B 以下开源模型永久免费",
+      "freeBasis": "官方公布 9B 及以下开源模型永久免费；Pro/ 前缀为付费版本，已由 deny 排除",
+      "freeBasisChecked": "2026-08-25",
+      "maxModels": 15,
+      "limits": {
+        "note": "免费模型有 RPM/TPM 限制，具体见控制台"
+      },
       "discovery": {
         "mode": "LISTING",
-        "url": "https://openrouter.ai/api/v1/models",
+        "url": "https://api.siliconflow.cn/v1/models?sub_type=chat",
         "auth": "BEARER",
         "itemsPath": "data",
         "idPath": "id",
         "allow": [
-          "*:free"
+          "qwen/qwen3-8b",
+          "qwen/qwen2.5-7b-instruct",
+          "qwen/qwen2.5-coder-7b-instruct",
+          "qwen/qwen2-7b-instruct",
+          "thudm/glm-4-9b-*",
+          "thudm/chatglm3-6b",
+          "internlm/internlm2_5-7b-chat",
+          "deepseek-ai/deepseek-r1-distill-qwen-7b",
+          "google/gemma-2-9b-it",
+          "meta-llama/meta-llama-3.1-8b-instruct",
+          "01-ai/yi-1.5-9b-chat-16k"
         ],
-        "deny": []
-      },
-      "probe": {
-        "enabled": true,
-        "maxPerCycle": 6,
-        "maxTokens": 16,
-        "prompt": "ping"
-      }
-    },
-    {
-      "id": "deepseek",
-      "name": "DeepSeek",
-      "nameZh": "DeepSeek",
-      "status": "ACTIVE",
-      "tier": "TRIAL",
-      "region": "cn",
-      "credential": "DEEPSEEK_API_KEY",
-      "litellmPrefix": "openai",
-      "apiBase": "https://api.deepseek.com/v1",
-      "docsUrl": "https://api-docs.deepseek.com",
-      "consoleUrl": "https://platform.deepseek.com",
-      "summary": "deepseek-chat / deepseek-reasoner 赠送额度",
-      "freeBasis": "注册赠送额度",
-      "freeBasisChecked": "2026-08-25",
-      "maxModels": 20,
-      "discovery": {
-        "mode": "STATIC",
-        "models": [
-          "deepseek-chat",
-          "deepseek-reasoner"
+        "deny": [
+          "pro/*"
         ]
       },
       "probe": {
-        "enabled": true,
-        "maxPerCycle": 2,
-        "maxTokens": 16,
-        "prompt": "ping"
+        "maxPerCycle": 5
+      }
+    },
+    {
+      "id": "sparkdesk",
+      "name": "iFlytek Spark",
+      "nameZh": "讯飞星火",
+      "status": "ACTIVE",
+      "tier": "TRIAL",
+      "region": "cn",
+      "credential": "SPARK_API_KEY",
+      "litellmPrefix": "openai",
+      "apiBase": "https://spark-api-open.xf-yun.com/v1",
+      "docsUrl": "https://www.xfyun.cn/doc/spark/HTTP%E8%B0%83%E7%94%A8%E6%96%87%E6%A1%A3.html",
+      "consoleUrl": "https://console.xfyun.cn/services/cbm",
+      "summary": "讯飞星火 Lite 与 V3.5",
+      "freeBasis": "Lite 版本长期免费，其余版本按新用户赠送 Token 包；星辰 MaaS 的限时活动窗口很短",
+      "freeBasisChecked": "2026-08-25",
+      "maxModels": 5,
+      "limits": {
+        "note": "API Key 使用「APIPassword」形式，需要在控制台开通对应服务"
+      },
+      "discovery": {
+        "mode": "STATIC",
+        "models": [
+          "lite",
+          "generalv3.5"
+        ]
+      },
+      "probe": {
+        "maxPerCycle": 2
+      }
+    },
+    {
+      "id": "stepfun",
+      "name": "StepFun",
+      "nameZh": "阶跃星辰 StepFun",
+      "status": "ACTIVE",
+      "tier": "TRIAL",
+      "region": "cn",
+      "credential": "STEPFUN_API_KEY",
+      "litellmPrefix": "openai",
+      "apiBase": "https://api.stepfun.com/v1",
+      "docsUrl": "https://platform.stepfun.com/docs/overview/concept",
+      "consoleUrl": "https://platform.stepfun.com/interface-key",
+      "summary": "阶跃 Step-1 / Step-2 系列",
+      "freeBasis": "注册赠送体验代金券（约 30 天有效）；额度用尽后探测会自动隔离",
+      "freeBasisChecked": "2026-08-25",
+      "maxModels": 6,
+      "limits": {
+        "note": "体验额度有效期较短"
+      },
+      "discovery": {
+        "mode": "STATIC",
+        "models": [
+          "step-1-8k",
+          "step-2-mini"
+        ]
+      },
+      "probe": {
+        "maxPerCycle": 2
+      }
+    },
+    {
+      "id": "volcengine",
+      "name": "Volcengine Ark",
+      "nameZh": "火山引擎 (豆包)",
+      "status": "ACTIVE",
+      "tier": "TRIAL",
+      "region": "cn",
+      "credential": "VOLCENGINE_API_KEY",
+      "litellmPrefix": "volcengine",
+      "docsUrl": "https://www.volcengine.com/docs/82379",
+      "consoleUrl": "https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey",
+      "summary": "豆包 Doubao 系列",
+      "freeBasis": "首次接入赠送测试 Token 包并有每日刷新额度；部分账号需要在方舟控制台开通对应模型",
+      "freeBasisChecked": "2026-08-25",
+      "maxModels": 8,
+      "limits": {
+        "note": "若账号未开通模型或仍要求 endpoint id，探测会把该模型隔离并写入变更日志"
+      },
+      "discovery": {
+        "mode": "STATIC",
+        "models": [
+          "doubao-seed-1-6-flash-250715",
+          "doubao-lite-32k",
+          "doubao-lite-4k",
+          "doubao-pro-32k"
+        ]
+      },
+      "probe": {
+        "maxPerCycle": 4
+      }
+    },
+    {
+      "id": "zenmux",
+      "name": "ZenMux",
+      "nameZh": "ZenMux",
+      "status": "ACTIVE",
+      "tier": "FREE",
+      "region": "global",
+      "credential": "ZENMUX_API_KEY",
+      "litellmPrefix": "openai",
+      "apiBase": "https://zenmux.ai/api/v1",
+      "docsUrl": "https://zenmux.ai/docs",
+      "consoleUrl": "https://zenmux.ai/settings/keys",
+      "referralUrl": "https://zenmux.ai/invite/L4QDZW",
+      "referralNote": "双方各得 $5 credit，被邀请人首次充值后额外获得 25% 奖励",
+      "referralRequiresPayment": true,
+      "summary": "自动发现平台上所有 0 价模型",
+      "freeBasis": "模型目录返回的 prompt 与 completion 全部价格规则为 0，输入输出都含 text，且输出模态不含 audio/image/video",
+      "freeBasisChecked": "2026-08-25",
+      "maxModels": 25,
+      "limits": {
+        "note": "以控制台公布的并发与速率为准"
+      },
+      "discovery": {
+        "mode": "PRICED_CATALOG",
+        "url": "https://zenmux.ai/api/v1/models",
+        "auth": "NONE",
+        "itemsPath": "data",
+        "idPath": "id",
+        "promptPricePath": "pricings.prompt",
+        "completionPricePath": "pricings.completion",
+        "priceValuePath": "value",
+        "inputModalitiesPath": "input_modalities",
+        "outputModalitiesPath": "output_modalities",
+        "requireTextIo": true,
+        "denyOutputModalities": [
+          "audio",
+          "image",
+          "video"
+        ]
+      },
+      "probe": {
+        "maxPerCycle": 8
+      }
+    },
+    {
+      "id": "zhipu",
+      "name": "Zhipu BigModel",
+      "nameZh": "智谱 AI (BigModel)",
+      "status": "ACTIVE",
+      "tier": "FREE",
+      "region": "cn",
+      "credential": "ZHIPU_API_KEY",
+      "litellmPrefix": "openai",
+      "apiBase": "https://open.bigmodel.cn/api/paas/v4",
+      "docsUrl": "https://docs.bigmodel.cn/cn/guide/start/model-overview",
+      "consoleUrl": "https://bigmodel.cn/usercenter/apikeys",
+      "referralUrl": "https://www.bigmodel.cn/invite?icode=bkHx%2Fep6dDks7UF3yJZB4LC%2Fk7jQAKmT1mpEiZXXnFw%3D",
+      "referralNote": "好友实名注册后双方各得 Tokens 资源包，无需充值",
+      "summary": "GLM-4.7-Flash 等 Flash 系列长期免费",
+      "freeBasis": "官网标注为「免费模型」的 Flash 系列，长期免费；带 flashx 的为付费高速档，已由 deny 排除",
+      "freeBasisChecked": "2026-08-25",
+      "maxModels": 10,
+      "limits": {
+        "note": "免费模型并发较低（部分为 1 并发），需要手机号注册"
+      },
+      "discovery": {
+        "mode": "STATIC",
+        "models": [
+          "glm-4.7-flash",
+          "glm-4.5-flash",
+          "glm-4-flash-250414",
+          "glm-4-flash",
+          "glm-4v-flash",
+          "glm-z1-flash"
+        ],
+        "deny": [
+          "*flashx*"
+        ]
+      },
+      "probe": {
+        "maxPerCycle": 6
       }
     }
   ]
