@@ -355,7 +355,7 @@ class MainActivity : AppCompatActivity() {
                 text = "  [" + ts + "] " + e.kind + " " + e.text
                 textSize = 12f
                 setPadding(0, 2, 0, 2)
-                setTextColor(ContextCompat.getColor(this@MainActivity, changelogColor(e.kind)))
+                setTextColor(changelogColor(e.kind))
             })
         }
     }
