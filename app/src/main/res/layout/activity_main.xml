@@ -78,7 +78,7 @@
                         android:layout_weight="1"
                         android:layout_marginStart="6dp"
                         style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                        android:text="刷新发现" />
+                        android:text="重新探测" />
                 </LinearLayout>
 
                 <LinearLayout
@@ -168,6 +168,41 @@
                     android:textColor="@color/card_title" />
                 <LinearLayout
                     android:id="@+id/providerContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingTop="8dp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            app:cardBackgroundColor="@color/card_bg"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="2dp">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="调用记录"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/card_title" />
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textSize="11sp"
+                    android:paddingTop="2dp"
+                    android:textColor="@color/text_secondary"
+                    android:text="别名 → 真实模型、耗时、token（最近 20 条，含探测来源标记）" />
+                <LinearLayout
+                    android:id="@+id/callLogContainer"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"

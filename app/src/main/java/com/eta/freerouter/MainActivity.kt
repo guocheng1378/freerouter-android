@@ -3,6 +3,7 @@ package com.eta.freerouter
 import android.content.Intent
 import android.content.SharedPreferences
 import android.graphics.Typeface
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -21,6 +22,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var keyContainer: LinearLayout
     private lateinit var providerContainer: LinearLayout
     private lateinit var changelogContainer: LinearLayout
+    private lateinit var callLogContainer: LinearLayout
     private lateinit var statusText: TextView
     private lateinit var trafficText: TextView
     private lateinit var toggleBtn: Button
@@ -43,6 +45,7 @@ class MainActivity : AppCompatActivity() {
         keyContainer = findViewById(R.id.keyContainer)
         providerContainer = findViewById(R.id.providerContainer)
         changelogContainer = findViewById(R.id.changelogContainer)
+        callLogContainer = findViewById(R.id.callLogContainer)
         statusText = findViewById(R.id.statusText)
         trafficText = findViewById(R.id.trafficText)
         toggleBtn = findViewById(R.id.toggleBtn)
@@ -67,7 +70,16 @@ class MainActivity : AppCompatActivity() {
         }
         buildKeyRows()
         toggleBtn.setOnClickListener { toggle() }
-        refreshBtn.setOnClickListener { refresh() }
+        refreshBtn.setOnClickListener {
+            val engine = RouterService.engineRef
+            if (engine != null) {
+                Toast.makeText(this, "正在重新探测…", Toast.LENGTH_SHORT).show()
+                engine.recheck()
+            } else {
+                Toast.makeText(this, "请先启动网关", Toast.LENGTH_SHORT).show()
+            }
+            refresh()
+        }
         applyDebugInjection(intent)
         updateStatus()
         buildProviderRows()
@@ -103,10 +115,11 @@ class MainActivity : AppCompatActivity() {
         keyInputs.clear()
         for (p in providers) {
             val env = p.credential ?: continue
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                setPadding(0, 8, 0, 8)
+            val box = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(0, 6, 0, 6)
             }
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
             val label = TextView(this).apply {
                 text = p.nameZh
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
@@ -120,7 +133,34 @@ class MainActivity : AppCompatActivity() {
             }
             keyInputs[env] = edit
             row.addView(label); row.addView(edit)
-            keyContainer.addView(row)
+            box.addView(row)
+            // 注册/邀请链接（上游 cli keys 等价）
+            val linkRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            var added = false
+            p.consoleUrl?.let { url ->
+                linkRow.addView(linkView("注册", url)); added = true
+            }
+            p.referralUrl?.let { url ->
+                linkRow.addView(linkView("邀请", url)); added = true
+            }
+            if (added) box.addView(linkRow)
+            keyContainer.addView(box)
+        }
+    }
+
+    private fun linkView(text: String, url: String): TextView = TextView(this).apply {
+        this.text = "  " + text + " ↗"
+        textSize = 12f
+        setTextColor(ContextCompat.getColor(this@MainActivity, R.color.status_healthy))
+        setPadding(0, 2, 16, 2)
+        setOnClickListener { openUrl(url) }
+    }
+
+    private fun openUrl(url: String) {
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        } catch (_: Exception) {
+            Toast.makeText(this, "无法打开链接", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -171,6 +211,7 @@ class MainActivity : AppCompatActivity() {
         toggleBtn.text = if (running) "停止网关" else "启动网关"
         buildProviderRows()
         buildChangelog()
+        buildCallLog()
         syncModelsUI()
     }
 
@@ -178,6 +219,33 @@ class MainActivity : AppCompatActivity() {
         val running = prefs.getBoolean("running", false)
         statusText.text = if (running) "● 运行中\nBase URL: http://127.0.0.1:4000/v1\n模型: free-router" else "○ 已停止"
         toggleBtn.text = if (running) "停止网关" else "启动网关"
+    }
+
+    private fun buildCallLog() {
+        callLogContainer.removeAllViews()
+        val engine = RouterService.engineRef ?: return
+        val calls = engine.traffic.recentCalls(20)
+        if (calls.isEmpty()) {
+            callLogContainer.addView(TextView(this).apply {
+                text = "  （暂无调用记录）"
+                textSize = 12f
+                setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_secondary))
+            })
+            return
+        }
+        val fmt = SimpleDateFormat("HH:mm:ss", Locale.US)
+        for (c in calls) {
+            val ts = fmt.format(Date(c.time))
+            val src = if (c.isProbe) "探测" else "调用"
+            val ok = if (c.ok) "✓" else "✗"
+            val line = "  [" + ts + "] " + src + " " + ok + " " + c.alias + " → " + c.realModel + "  " + c.durationMs + "ms  " + c.promptTokens + "+" + c.completionTokens + "tok"
+            callLogContainer.addView(TextView(this).apply {
+                text = line
+                textSize = 11f
+                setPadding(0, 2, 0, 2)
+                setTextColor(ContextCompat.getColor(this@MainActivity, if (c.ok) R.color.status_healthy else R.color.status_quarantined))
+            })
+        }
     }
 
     private fun saveKeys() {
