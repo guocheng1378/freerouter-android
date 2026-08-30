@@ -148,7 +148,7 @@ class FreeRouterEngine(
             if (fallbackPool && freeRouterEnabled) { streamThrough(poolCandidates(this), bodyJson, finalChunk, timeoutMs); return }
             finalChunk(streamError("no candidate models available")); return
         }
-        val PRECHECK_MS = 6000L
+        val PRECHECK_MS = 4000L
         val done = java.util.concurrent.atomic.AtomicBoolean(false)
         val emitted = java.util.concurrent.atomic.AtomicBoolean(false)
         var probe = 0

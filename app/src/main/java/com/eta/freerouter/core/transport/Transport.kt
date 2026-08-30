@@ -29,7 +29,7 @@ fun request(
 ): Response {
     val conn = (URL(url).openConnection() as HttpURLConnection).apply {
         requestMethod = method
-        connectTimeout = 8000
+        connectTimeout = 5000
         readTimeout = timeoutMs
         setRequestProperty("User-Agent", "FreeRouter/0.2")
         setRequestProperty("Accept", "application/json")
@@ -60,7 +60,7 @@ fun requestStreaming(
 ): Int {
     val conn = (URL(url).openConnection() as HttpURLConnection).apply {
         requestMethod = method
-        connectTimeout = 8000
+        connectTimeout = 5000
         readTimeout = timeoutMs
         setRequestProperty("User-Agent", "FreeRouter/0.2")
         setRequestProperty("Accept", "text/event-stream, application/json")
