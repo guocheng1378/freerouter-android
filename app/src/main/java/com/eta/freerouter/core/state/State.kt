@@ -56,6 +56,20 @@ class HealthState {
         }
     }
 
+    // 上游 cli `recheck` 等价：清掉隔离状态与退避计时，让下一轮立即重探。
+    fun clearQuarantine(providerId: String? = null) {
+        val now = System.currentTimeMillis()
+        for (h in byKey.values) {
+            if (providerId != null && h.provider != providerId) continue
+            if (h.status == HealthStatus.QUARANTINED || h.retryAfter > now) {
+                h.status = HealthStatus.UNKNOWN
+                h.retryAfter = 0L
+                h.consecutiveFailures = 0
+                h.detail = null
+            }
+        }
+    }
+
     fun recordProbe(provider: String, model: String, outcome: ProbeOutcome, error: String? = null) {
         val h = getOrCreate(provider, model)
         val now = System.currentTimeMillis()

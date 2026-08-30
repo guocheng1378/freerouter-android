@@ -6,6 +6,8 @@ import com.eta.freerouter.core.transport.Response as EngineResponse
 import fi.iki.elonen.NanoHTTPD
 import org.json.JSONArray
 import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 class LocalGateway(private val port: Int, private val engine: FreeRouterEngine) : NanoHTTPD(port) {
     companion object { const val PORT = 4000 }
@@ -17,6 +19,7 @@ class LocalGateway(private val port: Int, private val engine: FreeRouterEngine) 
             uri.endsWith("/health/liveliness") || uri.endsWith("/health/live") ->
                 NanoHTTPD.newFixedLengthResponse(NanoHTTPD.Response.Status.OK, "application/json", """{"status":"ok"}""")
             uri.endsWith("/v1/models") && method == NanoHTTPD.Method.GET -> handleModels()
+            uri.endsWith("/spend/logs") && method == NanoHTTPD.Method.GET -> handleSpendLogs()
             uri.endsWith("/v1/chat/completions") && method == NanoHTTPD.Method.POST -> handleChat(session)
             else -> NanoHTTPD.newFixedLengthResponse(NanoHTTPD.Response.Status.NOT_FOUND, "application/json", """{"error":"not found"}""")
         }
@@ -26,6 +29,25 @@ class LocalGateway(private val port: Int, private val engine: FreeRouterEngine) 
         val arr = JSONArray()
         for (id in engine.listModels()) arr.put(JSONObject().put("id", id).put("object", "model"))
         return NanoHTTPD.newFixedLengthResponse(NanoHTTPD.Response.Status.OK, "application/json", JSONObject().put("object", "list").put("data", arr).toString())
+    }
+
+    // 上游 gateway /spend/logs 等价：暴露本地调用明细，兼容外部 calls 类工具。
+    private fun handleSpendLogs(): NanoHTTPD.Response {
+        val fmt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
+        val arr = JSONArray()
+        for (c in engine.traffic.recentCalls(200)) {
+            arr.put(JSONObject().apply {
+                put("startTime", fmt.format(java.util.Date(c.time)))
+                put("status", if (c.ok) "success" else "failed")
+                put("model_group", c.alias)
+                put("model", c.realModel)
+                put("request_duration_ms", c.durationMs)
+                put("prompt_tokens", c.promptTokens)
+                put("completion_tokens", c.completionTokens)
+                put("is_probe", c.isProbe)
+            })
+        }
+        return NanoHTTPD.newFixedLengthResponse(NanoHTTPD.Response.Status.OK, "application/json", arr.toString())
     }
 
     private fun handleChat(session: IHTTPSession): NanoHTTPD.Response {
