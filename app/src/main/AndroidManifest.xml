@@ -7,7 +7,7 @@
         android:allowBackup="true"
         android:usesCleartextTraffic="true"
         android:label="FreeRouter"
-        android:theme="@style/Theme.AppCompat.DayNight.NoActionBar">
+        android:theme="@style/Theme.FreeRouter">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
