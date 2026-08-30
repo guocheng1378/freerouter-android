@@ -35,22 +35,33 @@ private fun discoverStatic(provider: Provider): DiscoveryResult {
     return DiscoveryResult(provider.id, kept, dropped)
 }
 
-private fun discoverCatalog(provider: Provider, secrets: Map<String, String>): DiscoveryResult {
+private fun discoverCatalog(provider: Provider, secrets: Map<String, String>, manualFree: Set<String> = emptySet()): DiscoveryResult {
     val resolved = catalogRequest(provider.discovery, secrets, provider.credential)
         ?: return DiscoveryResult(provider.id, error = "catalog URL could not be resolved")
     val resp = request(resolved.first, method = "GET", headers = resolved.second)
     if (!resp.ok) return DiscoveryResult(provider.id, error = "catalog request failed: HTTP ${resp.status}")
     val payload = resp.json() ?: return DiscoveryResult(provider.id, error = "catalog response is not JSON")
-    val ids = modelIds(payload, provider.discovery)
+    val ids = modelIds(payload, provider.discovery, provider.id, manualFree)
     val (kept, dropped) = finish(provider, ids)
-    return DiscoveryResult(provider.id, kept, dropped)
+    // 白名单具体模型即使被 allow/deny/limit 过滤掉也强制追加
+    val forced = mutableListOf<String>()
+    for (entry in manualFree) {
+        val slash = entry.indexOf('/')
+        if (slash <= 0) continue
+        val pid = entry.substring(0, slash).trim()
+        val pat = entry.substring(slash + 1).trim()
+        if (!pid.equals(provider.id, ignoreCase = true) && pid != "*") continue
+        if (pat == "*" || pat.isEmpty()) continue
+        if (!pat.contains('*') && !pat.contains('?') && pat !in kept) forced.add(pat)
+    }
+    return DiscoveryResult(provider.id, (kept + forced).distinct().sorted(), dropped)
 }
 
-fun discover(provider: Provider, secrets: Map<String, String> = emptyMap()): DiscoveryResult {
+fun discover(provider: Provider, secrets: Map<String, String> = emptyMap(), manualFree: Set<String> = emptySet()): DiscoveryResult {
     val skip = skipReason(provider, secrets, requireCredentials = true)
     if (skip != null) return DiscoveryResult(provider.id, skipped = skip)
     return when (provider.discovery.mode) {
         DiscoveryMode.STATIC -> discoverStatic(provider)
-        else -> discoverCatalog(provider, secrets)
+        else -> discoverCatalog(provider, secrets, manualFree)
     }
 }

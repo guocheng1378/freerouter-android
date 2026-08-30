@@ -30,6 +30,8 @@ class FreeRouterEngine(
     var defaultModel: String = POOL_ALIAS
     var freeRouterEnabled: Boolean = true
     val modelEnabled = mutableMapOf<String, Boolean>()
+    // 手动白名单：用户声明免费、绕过价格检测与探测隔离的模型，格式 providerId/modelId 或 providerId/*
+    val manualFree = mutableSetOf<String>()
 
     fun listModels(): List<String> {
         val out = mutableListOf<String>()
@@ -86,6 +88,15 @@ class FreeRouterEngine(
             return Response(502, """{"error":"provider ${group.id} all models failed"}""".toByteArray())
         }
         return Response(404, """{"error":"model not found: $target"}""".toByteArray())
+    }
+
+    // 手动白名单：添加 / 移除后立即重跑发现，让新模型进入路由池。
+    fun addManualFree(entry: String) {
+        if (manualFree.add(entry.trim())) refreshNow()
+    }
+
+    fun removeManualFree(entry: String) {
+        if (manualFree.remove(entry.trim())) refreshNow()
     }
 
     // 上游 cli `recheck` 等价：清掉隔离与退避计时，然后立即跑一轮刷新（后台线程）。

@@ -30,6 +30,7 @@ class RouterService : Service() {
             engine!!.defaultModel = sp.getString("default_model", "free-router") ?: "free-router"
             engine!!.freeRouterEnabled = sp.getBoolean("fr_enabled", true)
             sp.all.forEach { (k, vv) -> if (k.startsWith("m:")) engine!!.modelEnabled[k.removePrefix("m:")] = (vv as? Boolean) ?: true }
+            sp.all.forEach { (k, vv) -> if (k.startsWith("wl:")) (vv as? String)?.let { engine!!.manualFree.add(it) } }
             engine!!.start()
             gateway = LocalGateway(LocalGateway.PORT, engine!!).apply { start() }
             engineRef = engine

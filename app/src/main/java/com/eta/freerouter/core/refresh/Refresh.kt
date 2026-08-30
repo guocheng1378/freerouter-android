@@ -2,6 +2,8 @@ package com.eta.freerouter.core.refresh
 
 import com.eta.freerouter.core.discovery.discover
 import com.eta.freerouter.core.engine.FreeRouterEngine
+import com.eta.freerouter.core.planning.manualFreeMatch
+import com.eta.freerouter.core.probe.ProbeOutcome
 import com.eta.freerouter.core.probe.probeOne
 import com.eta.freerouter.core.registry.credentialsFor
 import com.eta.freerouter.core.state.HealthStatus
@@ -16,7 +18,7 @@ fun runCycle(engine: FreeRouterEngine, recheckAfterMs: Long) {
     for (provider in engine.providers) {
         val sec = credentialsFor(provider, engine.secrets)
         if (sec.isEmpty()) { changes.add(provider.id + ": skipped (missing credentials)"); continue }
-        val result = discover(provider, sec)
+        val result = discover(provider, sec, engine.manualFree)
         if (!result.usable) { changes.add(provider.id + ": discovery failed (" + (result.error ?: result.skipped ?: "unknown") + ")"); continue }
         val prev = engine.discovered[provider.id] ?: emptyList()
         if (prev != result.models) {
@@ -36,6 +38,7 @@ fun runCycle(engine: FreeRouterEngine, recheckAfterMs: Long) {
                 val h = engine.health.get(provider.id, m)
                 val status = h?.status ?: HealthStatus.UNKNOWN
                 val alias = "fr/" + provider.id + "/" + m
+                val isFreed = manualFreeMatch(provider.id, m, engine.manualFree)
                 if (engine.traffic.lastOkWithin(alias)) {
                     if (status != HealthStatus.HEALTHY) {
                         engine.health.getOrCreate(provider.id, m).status = HealthStatus.HEALTHY
@@ -63,7 +66,20 @@ fun runCycle(engine: FreeRouterEngine, recheckAfterMs: Long) {
             val capped = toProbe.take(provider.probe.maxPerCycle)
             for (m in capped) {
                 val r = probeOne(provider, m, sec)
-                engine.health.recordProbe(provider.id, m, r.outcome, r.body)
+                // 白名单模型：探测失败不隔离（用户手动确认免费），保留在池中，仅记录状态。
+                if (manualFreeMatch(provider.id, m, engine.manualFree) && r.outcome != ProbeOutcome.OK) {
+                    val h = engine.health.getOrCreate(provider.id, m)
+                    h.lastProbe = now
+                    h.lastSeen = now
+                    h.lastOutcome = r.outcome
+                    h.lastError = r.body.take(200)
+                    if (h.status == HealthStatus.QUARANTINED) {
+                        h.status = HealthStatus.UNKNOWN
+                        h.retryAfter = 0L
+                    }
+                } else {
+                    engine.health.recordProbe(provider.id, m, r.outcome, r.body)
+                }
                 Thread.sleep(1500)
             }
             if (capped.isNotEmpty()) changes.add(provider.id + ": probed " + capped.size + " models")

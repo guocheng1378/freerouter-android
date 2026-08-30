@@ -32,6 +32,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var modelSpinner: Spinner
     private lateinit var frSwitch: SwitchCompat
     private lateinit var modelSettingsContainer: LinearLayout
+    private lateinit var whitelistInput: EditText
+    private lateinit var whitelistAddBtn: Button
+    private lateinit var whitelistContainer: LinearLayout
     private var spinnerReady: Boolean = false
     private val keyInputs = mutableMapOf<String, EditText>()
     private lateinit var refresher: Handler
@@ -54,6 +57,10 @@ class MainActivity : AppCompatActivity() {
         modelSpinner = findViewById(R.id.modelSpinner)
         frSwitch = findViewById(R.id.frSwitch)
         modelSettingsContainer = findViewById(R.id.modelSettingsContainer)
+        whitelistInput = findViewById(R.id.whitelistInput)
+        whitelistAddBtn = findViewById(R.id.whitelistAddBtn)
+        whitelistContainer = findViewById(R.id.whitelistContainer)
+        whitelistAddBtn.setOnClickListener { addWhitelist() }
         frSwitch.isChecked = prefs.getBoolean("fr_enabled", true)
         frSwitch.setOnCheckedChangeListener { _, c ->
             prefs.edit().putBoolean("fr_enabled", c).apply()
@@ -213,6 +220,7 @@ class MainActivity : AppCompatActivity() {
         buildProviderRows()
         buildChangelog()
         buildCallLog()
+        buildWhitelist()
         syncModelsUI()
     }
 
@@ -333,6 +341,55 @@ class MainActivity : AppCompatActivity() {
             }
             row.addView(label); row.addView(sw)
             modelSettingsContainer.addView(row)
+        }
+    }
+
+    // 手动白名单：新增条目（providerId/modelId 或 providerId/*），持久化并立即重跑发现。
+    private fun addWhitelist() {
+        val raw = whitelistInput.text.toString().trim()
+        if (raw.isEmpty()) { Toast.makeText(this, "请输入格式：providerId/modelId 或 providerId/*", Toast.LENGTH_SHORT).show(); return }
+        val entry = raw.trim('/')
+        if (!entry.contains('/')) { Toast.makeText(this, "格式不正确，应类似 openrouter/deepseek/deepseek-chat", Toast.LENGTH_SHORT).show(); return }
+        prefs.edit().putString("wl:" + entry, entry).apply()
+        RouterService.engineRef?.addManualFree(entry)
+        whitelistInput.setText("")
+        Toast.makeText(this, "已加入白名单：" + entry, Toast.LENGTH_SHORT).show()
+        refresh()
+    }
+
+    private fun buildWhitelist() {
+        whitelistContainer.removeAllViews()
+        val list = prefs.all.keys.filter { it.startsWith("wl:") }.map { it.removePrefix("wl:") }.sorted()
+        if (list.isEmpty()) {
+            whitelistContainer.addView(TextView(this).apply {
+                text = "  （暂无白名单）"
+                textSize = 12f
+                setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_secondary))
+            })
+            return
+        }
+        for (entry in list) {
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, 4, 0, 4) }
+            val label = TextView(this).apply {
+                text = "★ " + entry
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                textSize = 13f
+                setTextColor(ContextCompat.getColor(this@MainActivity, R.color.status_warn))
+            }
+            val del = TextView(this).apply {
+                text = "移除"
+                textSize = 12f
+                setPadding(8, 0, 0, 0)
+                setTextColor(ContextCompat.getColor(this@MainActivity, R.color.status_quarantined))
+                setOnClickListener {
+                    prefs.edit().remove("wl:" + entry).apply()
+                    RouterService.engineRef?.removeManualFree(entry)
+                    Toast.makeText(this@MainActivity, "已移除白名单：" + entry, Toast.LENGTH_SHORT).show()
+                    refresh()
+                }
+            }
+            row.addView(label); row.addView(del)
+            whitelistContainer.addView(row)
         }
     }
 

@@ -165,6 +165,60 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:text="手动白名单"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/card_title" />
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textSize="11sp"
+                    android:paddingTop="2dp"
+                    android:textColor="@color/text_secondary"
+                    android:text="价格检测漏判时手动声明免费，格式：providerId/modelId 或 providerId/*（* 表示该供应商全部模型）" />
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:paddingTop="8dp">
+                    <EditText
+                        android:id="@+id/whitelistInput"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:hint="例如 openrouter/deepseek/deepseek-chat"
+                        android:inputType="text" />
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/whitelistAddBtn"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:text="添加" />
+                </LinearLayout>
+                <LinearLayout
+                    android:id="@+id/whitelistContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingTop="8dp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            app:cardBackgroundColor="@color/card_bg"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="2dp">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
                     android:text="Provider 状态"
                     android:textSize="15sp"
                     android:textStyle="bold"
