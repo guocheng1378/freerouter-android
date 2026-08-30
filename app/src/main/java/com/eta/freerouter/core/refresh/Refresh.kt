@@ -3,7 +3,7 @@ package com.eta.freerouter.core.refresh
 import com.eta.freerouter.core.discovery.discover
 import com.eta.freerouter.core.engine.FreeRouterEngine
 import com.eta.freerouter.core.planning.manualFreeMatch
-import com.eta.freerouter.core.probe.ProbeOutcome
+import com.eta.freerouter.core.state.ProbeOutcome
 import com.eta.freerouter.core.probe.probeOne
 import com.eta.freerouter.core.registry.credentialsFor
 import com.eta.freerouter.core.state.HealthStatus
