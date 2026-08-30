@@ -148,18 +148,32 @@ class FreeRouterEngine(
             if (fallbackPool && freeRouterEnabled) { streamThrough(poolCandidates(this), bodyJson, finalChunk, timeoutMs); return }
             finalChunk(streamError("no candidate models available")); return
         }
+        val PRECHECK_MS = 6000L
+        val done = java.util.concurrent.atomic.AtomicBoolean(false)
+        val emitted = java.util.concurrent.atomic.AtomicBoolean(false)
+        var probe = 0
         for ((p, m) in cands) {
-            var decided = false
-            var ok = false
-            forwardChatStreaming(p, m, bodyJson, secrets, { ev ->
-                if (decided) return@forwardChatStreaming
-                if (!ok) {
-                    if (isErrorEvent(ev)) { decided = true; return@forwardChatStreaming }
-                    ok = true; decided = true
-                }
-                finalChunk(ev)
-            }, timeoutMs)
-            if (ok) return
+            val myProbe = ++probe
+            done.set(false); emitted.set(false)
+            val t0 = System.currentTimeMillis()
+            val th = Thread {
+                forwardChatStreaming(p, m, bodyJson, secrets, { ev ->
+                    if (myProbe != probe) return@forwardChatStreaming
+                    if (!emitted.get()) {
+                        if (isErrorEvent(ev)) { return@forwardChatStreaming }
+                        emitted.set(true)
+                    }
+                    finalChunk(ev)
+                }, timeoutMs)
+                done.set(true)
+            }
+            th.start()
+            while (System.currentTimeMillis() - t0 < PRECHECK_MS && !emitted.get() && !done.get()) Thread.sleep(50)
+            if (emitted.get()) {
+                while (th.isAlive && System.currentTimeMillis() - t0 < timeoutMs) Thread.sleep(100)
+                return
+            }
+            th.interrupt()
         }
         if (fallbackPool && freeRouterEnabled) {
             streamThrough(poolCandidates(this), bodyJson, finalChunk, timeoutMs)
@@ -167,6 +181,7 @@ class FreeRouterEngine(
             finalChunk(streamError("all candidate models failed"))
         }
     }
+
 
     fun addManualFree(entry: String) {
         if (manualFree.add(entry.trim())) refreshNow()
