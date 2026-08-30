@@ -98,6 +98,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (prefs.getBoolean("running", false)) {
+            try { startForegroundService(Intent(this, RouterService::class.java)) } catch (_: Exception) {}
+        }
         refresh()
     }
 
@@ -214,9 +217,13 @@ class MainActivity : AppCompatActivity() {
             val g = engine.traffic.global()
             "请求 " + g.requests + " · 成功 " + g.okRequests + " · 失败 " + g.failedRequests + " · tokens " + g.totalTokens
         } else "（网关未运行）"
-        val running = prefs.getBoolean("running", false)
-        statusText.text = if (running) "● 运行中\nBase URL: http://127.0.0.1:4000/v1\n模型: free-router" else "○ 已停止"
-        toggleBtn.text = if (running) "停止网关" else "启动网关"
+        val intentOn = prefs.getBoolean("running", false)
+        val running = RouterService.engineRef != null
+        statusText.text = if (running) "● 运行中\nBase URL: http://127.0.0.1:4000/v1\n模型: free-router"
+        else if (intentOn) "◌ 启动中…\nBase URL: http://127.0.0.1:4000/v1"
+        else "○ 已停止"
+        toggleBtn.text = if (intentOn) "停止网关" else "启动网关"
+        if (intentOn && !running) Handler(Looper.getMainLooper()).postDelayed({ refresh() }, 700)
         buildProviderRows()
         buildChangelog()
         buildCallLog()
@@ -225,9 +232,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateStatus() {
-        val running = prefs.getBoolean("running", false)
-        statusText.text = if (running) "● 运行中\nBase URL: http://127.0.0.1:4000/v1\n模型: free-router" else "○ 已停止"
-        toggleBtn.text = if (running) "停止网关" else "启动网关"
+        val intentOn = prefs.getBoolean("running", false)
+        val running = RouterService.engineRef != null
+        statusText.text = if (running) "● 运行中\nBase URL: http://127.0.0.1:4000/v1\n模型: free-router"
+        else if (intentOn) "◌ 启动中…\nBase URL: http://127.0.0.1:4000/v1"
+        else "○ 已停止"
+        toggleBtn.text = if (intentOn) "停止网关" else "启动网关"
     }
 
     private fun buildCallLog() {
@@ -268,7 +278,7 @@ class MainActivity : AppCompatActivity() {
             stopService(intent)
             prefs.edit().putBoolean("running", false).apply()
         } else {
-            startService(intent)
+            startForegroundService(intent)
             prefs.edit().putBoolean("running", true).apply()
         }
         refresh()
