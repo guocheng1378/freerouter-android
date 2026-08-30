@@ -43,6 +43,11 @@ class FreeRouterEngine(
                 if (modelEnabled[alias] != false && health.get(p.id, m)?.status != HealthStatus.QUARANTINED) out.add(alias)
             }
         }
+        // 手动白名单：直接暴露为 fr/provider/model 别名
+        for ((pid, m) in manualCandidates()) {
+            val alias = directAlias(pid.id, m)
+            if (modelEnabled[alias] != false && health.get(pid.id, m)?.status != HealthStatus.QUARANTINED) out.add(alias)
+        }
         if (freeRouterEnabled) out.add(POOL_ALIAS)
         return out
     }
@@ -52,6 +57,23 @@ class FreeRouterEngine(
         if (parts.size < 3) return Response(0, "bad alias".toByteArray())
         val provider = providers.firstOrNull { it.id == parts[1] } ?: return Response(0, "unknown provider".toByteArray())
         return forwardChat(provider, parts[2], body, secrets)
+    }
+
+    // 把白名单条目展开为 (provider, modelId)；支持 providerId/modelId 与 providerId/*
+    internal fun manualCandidates(): List<Pair<Provider, String>> {
+        val out = mutableListOf<Pair<Provider, String>>()
+        for (entry in manualFree) {
+            val parts = entry.split("/", limit = 2)
+            if (parts.size != 2) continue
+            val p = providers.firstOrNull { it.id == parts[0] } ?: continue
+            if (!p.routable) continue
+            if (parts[1] == "*") {
+                for (m in discovered[p.id] ?: emptyList()) out.add(p to m)
+            } else {
+                out.add(p to parts[1])
+            }
+        }
+        return out
     }
 
     fun routeChat(model: String, bodyJson: String, timeoutMs: Int = 90000): Response {

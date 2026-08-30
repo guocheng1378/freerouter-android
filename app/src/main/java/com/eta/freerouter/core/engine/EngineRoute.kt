@@ -21,6 +21,16 @@ fun routePool(engine: FreeRouterEngine, bodyJson: String, timeoutMs: Int): Respo
             if (h != null && h.retryAfter > now) continue
             candidates.add(p to m)
         }
+    // 手动白名单模型同样进入 free-router 候选池
+    for ((p, m) in engine.manualCandidates()) {
+        val alias = directAlias(p.id, m)
+        if (engine.modelEnabled[alias] == false) continue
+        val h = engine.health.get(p.id, m)
+        val status = h?.status ?: HealthStatus.UNKNOWN
+        if (status == HealthStatus.QUARANTINED) continue
+        if (h != null && h.retryAfter > now) continue
+        candidates.add(p to m)
+    }
     }
     // 排序（上游 observe_traffic 思想）：被真实流量近期成功验证的模型最优先，
     // 其后 HEALTHY > 近期成功过 > 未探测(UNKNOWN) > 失败中。
