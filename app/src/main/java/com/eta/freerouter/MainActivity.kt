@@ -194,7 +194,7 @@ class MainActivity : AppCompatActivity() {
                         text = "● " + m + " [" + st + "]" + detail + retry
                         textSize = 12f
                         setPadding(0, 2, 0, 2)
-                        setTextColor(ContextCompat.getColor(this@MainActivity, statusColor(st, h?.retryAfter ?: 0L)))
+                        setTextColor(statusColor(st, h?.retryAfter ?: 0L))
                     })
                 }
             }
