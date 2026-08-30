@@ -27,29 +27,37 @@ fun request(
     body: String? = null,
     timeoutMs: Int = 30000,
 ): Response {
-    val conn = (URL(url).openConnection() as HttpURLConnection).apply {
-        requestMethod = method
-        connectTimeout = 5000
-        readTimeout = timeoutMs
-        setRequestProperty("User-Agent", "FreeRouter/0.2")
-        setRequestProperty("Accept", "application/json")
-        headers?.forEach { (k, v) -> setRequestProperty(k, v) }
+    val conn = try {
+        (URL(url).openConnection() as HttpURLConnection).apply {
+            requestMethod = method
+            connectTimeout = 4000
+            readTimeout = timeoutMs
+            setRequestProperty("User-Agent", "FreeRouter/0.2")
+            setRequestProperty("Accept", "application/json")
+            headers?.forEach { (k, v) -> setRequestProperty(k, v) }
+        }
+    } catch (_: Exception) {
+        return Response(0, ByteArray(0))
     }
-    if (body != null) {
-        conn.doOutput = true
-        conn.setRequestProperty("Content-Type", "application/json")
-        conn.outputStream.use { it.write(body.toByteArray(StandardCharsets.UTF_8)) }
+    return try {
+        if (body != null) {
+            conn.doOutput = true
+            conn.setRequestProperty("Content-Type", "application/json")
+            conn.outputStream.use { it.write(body.toByteArray(StandardCharsets.UTF_8)) }
+        }
+        val status = try { conn.responseCode } catch (_: Exception) { 0 }
+        val bytes = try {
+            val stream = if (status in 200..399) conn.inputStream else conn.errorStream
+            stream?.use { it.readBytes() } ?: ByteArray(0)
+        } catch (_: Exception) { ByteArray(0) }
+        Response(status, bytes)
+    } catch (_: Exception) {
+        Response(0, ByteArray(0))
     }
-    val status = try { conn.responseCode } catch (_: Exception) { 0 }
-    val bytes = try {
-        val stream = if (status in 200..399) conn.inputStream else conn.errorStream
-        stream?.use { it.readBytes() } ?: ByteArray(0)
-    } catch (_: Exception) { ByteArray(0) }
-    return Response(status, bytes)
 }
 
 // 流式请求：逐事件（以空行分隔的 SSE 块）回调 onEvent。返回最终 HTTP 状态码。
-// 非 2xx 时构造一个 data:{"error":...} 事件回调，便于外层做 failover 判断。
+// 非 2xx 或连接失败均构造 data:{"error":...} 事件回调，便于外层做 failover 判断。
 fun requestStreaming(
     url: String,
     method: String = "POST",
@@ -58,44 +66,55 @@ fun requestStreaming(
     timeoutMs: Int = 90000,
     onEvent: (String) -> Unit,
 ): Int {
-    val conn = (URL(url).openConnection() as HttpURLConnection).apply {
-        requestMethod = method
-        connectTimeout = 5000
-        readTimeout = timeoutMs
-        setRequestProperty("User-Agent", "FreeRouter/0.2")
-        setRequestProperty("Accept", "text/event-stream, application/json")
-        headers?.forEach { (k, v) -> setRequestProperty(k, v) }
-    }
-    if (body != null) {
-        conn.doOutput = true
-        conn.setRequestProperty("Content-Type", "application/json")
-        conn.outputStream.use { it.write(body.toByteArray(StandardCharsets.UTF_8)) }
-    }
-    val status = try { conn.responseCode } catch (_: Exception) { 0 }
-    if (status !in 200..299) {
-        val err = try { conn.errorStream?.use { it.readBytes() }?.toString(StandardCharsets.UTF_8) } catch (_: Exception) { null }
-        val msg = if (!err.isNullOrBlank()) err else "http $status"
-        try { onEvent("data: " + JSONObject().put("error", msg).toString() + "\n\n") } catch (_: Exception) {}
-        return status
-    }
-    try {
-        conn.inputStream.bufferedReader(StandardCharsets.UTF_8).use { br ->
-            val sb = StringBuilder()
-            var line: String?
-            while (br.readLine().also { line = it } != null) {
-                val l = line ?: ""
-                if (l.isEmpty()) {
-                    if (sb.isNotEmpty()) { onEvent(sb.toString() + "\n"); sb.setLength(0) }
-                } else {
-                    sb.append(l).append('\n')
-                }
-            }
-            if (sb.isNotEmpty()) onEvent(sb.toString() + "\n")
+    val conn = try {
+        (URL(url).openConnection() as HttpURLConnection).apply {
+            requestMethod = method
+            connectTimeout = 4000
+            readTimeout = timeoutMs
+            setRequestProperty("User-Agent", "FreeRouter/0.2")
+            setRequestProperty("Accept", "text/event-stream, application/json")
+            headers?.forEach { (k, v) -> setRequestProperty(k, v) }
         }
     } catch (_: Exception) {
-        return status
+        emitStreamError(onEvent, "connect failed: $url")
+        return 0
     }
-    return status
+    return try {
+        if (body != null) {
+            conn.doOutput = true
+            conn.setRequestProperty("Content-Type", "application/json")
+            conn.outputStream.use { it.write(body.toByteArray(StandardCharsets.UTF_8)) }
+        }
+        val status = try { conn.responseCode } catch (_: Exception) { 0 }
+        if (status !in 200..299) {
+            val err = try { conn.errorStream?.use { it.readBytes() }?.toString(StandardCharsets.UTF_8) } catch (_: Exception) { null }
+            val msg = if (!err.isNullOrBlank()) err else "http $status"
+            emitStreamError(onEvent, msg)
+            return status
+        }
+        try {
+            conn.inputStream.bufferedReader(StandardCharsets.UTF_8).use { br ->
+                val sb = StringBuilder()
+                var line: String?
+                while (br.readLine().also { line = it } != null) {
+                    val l = line ?: ""
+                    if (l.isEmpty()) {
+                        if (sb.isNotEmpty()) { onEvent(sb.toString() + "\n"); sb.setLength(0) }
+                    } else {
+                        sb.append(l).append('\n')
+                    }
+                }
+                if (sb.isNotEmpty()) onEvent(sb.toString() + "\n")
+            }
+        } catch (_: Exception) { /* 连接中途断开等，忽略 */ }
+        status
+    } catch (_: Exception) {
+        emitStreamError(onEvent, "connect failed: $url")
+        0
+    }
+}
+private fun emitStreamError(onEvent: (String) -> Unit, msg: String) {
+    try { onEvent("data: " + JSONObject().put("error", msg).toString() + "\n\n") } catch (_: Exception) {}
 }
 
 // 判断一段 SSE data 是否为 OpenAI 错误体（应触发 failover）

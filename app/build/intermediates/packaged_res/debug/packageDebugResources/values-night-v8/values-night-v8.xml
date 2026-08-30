@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="card_bg">#1E1E1E</color>
+    <color name="card_title">#E5E7EB</color>
+    <color name="status_healthy">#4ADE80</color>
+    <color name="status_quarantined">#F87171</color>
+    <color name="status_unknown">#9CA3AF</color>
+    <color name="status_warn">#FBBF24</color>
+    <color name="text_secondary">#9CA3AF</color>
+</resources>

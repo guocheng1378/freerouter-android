@@ -148,7 +148,7 @@ class FreeRouterEngine(
             if (fallbackPool && freeRouterEnabled) { streamThrough(poolCandidates(this), bodyJson, finalChunk, timeoutMs); return }
             finalChunk(streamError("no candidate models available")); return
         }
-        val PRECHECK_MS = 4000L
+        val PRECHECK_MS = 3000L
         val done = java.util.concurrent.atomic.AtomicBoolean(false)
         val emitted = java.util.concurrent.atomic.AtomicBoolean(false)
         var probe = 0
@@ -157,15 +157,20 @@ class FreeRouterEngine(
             done.set(false); emitted.set(false)
             val t0 = System.currentTimeMillis()
             val th = Thread {
-                forwardChatStreaming(p, m, bodyJson, secrets, { ev ->
-                    if (myProbe != probe) return@forwardChatStreaming
-                    if (!emitted.get()) {
-                        if (isErrorEvent(ev)) { return@forwardChatStreaming }
-                        emitted.set(true)
-                    }
-                    finalChunk(ev)
-                }, timeoutMs)
-                done.set(true)
+                try {
+                    forwardChatStreaming(p, m, bodyJson, secrets, { ev ->
+                        if (myProbe != probe) return@forwardChatStreaming
+                        if (!emitted.get()) {
+                            if (isErrorEvent(ev)) { return@forwardChatStreaming }
+                            emitted.set(true)
+                        }
+                        finalChunk(ev)
+                    }, timeoutMs)
+                } catch (_: Throwable) {
+                    // 防御：单个候选异常不应拖垮整个网关进程
+                } finally {
+                    done.set(true)
+                }
             }
             th.start()
             while (System.currentTimeMillis() - t0 < PRECHECK_MS && !emitted.get() && !done.get()) Thread.sleep(50)
