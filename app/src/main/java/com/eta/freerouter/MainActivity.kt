@@ -9,6 +9,7 @@ import android.os.Handler
 import android.os.Looper
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SwitchCompat
 import androidx.core.content.ContextCompat
 import com.eta.freerouter.core.registry.Provider
 import com.eta.freerouter.core.registry.loadProviders
@@ -29,7 +30,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var refreshBtn: Button
     private var providers: List<Provider> = emptyList()
     private lateinit var modelSpinner: Spinner
-    private lateinit var frSwitch: Switch
+    private lateinit var frSwitch: SwitchCompat
     private lateinit var modelSettingsContainer: LinearLayout
     private var spinnerReady: Boolean = false
     private val keyInputs = mutableMapOf<String, EditText>()
