@@ -12,6 +12,7 @@ import com.eta.freerouter.core.state.HealthState
 import com.eta.freerouter.core.traffic.CallRecord
 import com.eta.freerouter.core.traffic.TrafficRecorder
 import com.eta.freerouter.core.transport.Response
+import com.eta.freerouter.core.transport.isErrorEvent
 import com.eta.freerouter.core.watch.WatchScheduler
 import android.util.Log
 import org.json.JSONObject
@@ -30,7 +31,6 @@ class FreeRouterEngine(
     var defaultModel: String = POOL_ALIAS
     var freeRouterEnabled: Boolean = true
     val modelEnabled = mutableMapOf<String, Boolean>()
-    // 手动白名单：用户声明免费、绕过价格检测与探测隔离的模型，格式 providerId/modelId 或 providerId/*
     val manualFree = mutableSetOf<String>()
 
     fun listModels(): List<String> {
@@ -43,7 +43,6 @@ class FreeRouterEngine(
                 if (modelEnabled[alias] != false && health.get(p.id, m)?.status != HealthStatus.QUARANTINED) out.add(alias)
             }
         }
-        // 手动白名单：直接暴露为 fr/provider/model 别名
         for ((pid, m) in manualCandidates()) {
             val alias = directAlias(pid.id, m)
             if (modelEnabled[alias] != false && health.get(pid.id, m)?.status != HealthStatus.QUARANTINED) out.add(alias)
@@ -59,7 +58,6 @@ class FreeRouterEngine(
         return forwardChat(provider, parts[2], body, secrets)
     }
 
-    // 把白名单条目展开为 (provider, modelId)；支持 providerId/modelId 与 providerId/*
     internal fun manualCandidates(): List<Pair<Provider, String>> {
         val out = mutableListOf<Pair<Provider, String>>()
         for (entry in manualFree) {
@@ -112,7 +110,64 @@ class FreeRouterEngine(
         return Response(404, """{"error":"model not found: $target"}""".toByteArray())
     }
 
-    // 手动白名单：添加 / 移除后立即重跑发现，让新模型进入路由池。
+    // 流式路由：free-router 池在"写出首个有效事件之前"做 failover（首字节前自动切换模型）；
+    // 一旦锁定某个模型的首个有效事件，后续不再切换。指定别名/group 失败时回退到 pool。
+    fun routeChatStreaming(model: String, bodyJson: String, timeoutMs: Int = 90000, finalChunk: (String) -> Unit) {
+        val target = model.ifBlank { defaultModel }
+        if (target == POOL_ALIAS) {
+            if (!freeRouterEnabled) { finalChunk(streamError("free-router disabled")); return }
+            streamThrough(poolCandidates(this), bodyJson, finalChunk, timeoutMs)
+            return
+        }
+        if (target.startsWith("$DIRECT_NAMESPACE/")) {
+            val parts = target.split("/", limit = 3)
+            if (parts.size < 3) { finalChunk(streamError("bad model")); return }
+            val p = providers.firstOrNull { it.id == parts[1] }
+            if (p == null) { finalChunk(streamError("unknown provider ${parts[1]}")); return }
+            streamThrough(listOf(p to parts[2]), bodyJson, finalChunk, timeoutMs, fallbackPool = true)
+            return
+        }
+        val group = providers.firstOrNull { it.groupAlias == target }
+        if (group != null) {
+            val cands = discovered[group.id]?.map { group to it } ?: emptyList()
+            streamThrough(cands, bodyJson, finalChunk, timeoutMs, fallbackPool = true)
+            return
+        }
+        finalChunk(streamError("model not found: $target"))
+    }
+
+    // 依次尝试候选；首个写出有效事件前若遇错误则切换下一个；全部失败回退 free-router 池（若允许）。
+    private fun streamThrough(
+        cands: List<Pair<Provider, String>>,
+        bodyJson: String,
+        finalChunk: (String) -> Unit,
+        timeoutMs: Int,
+        fallbackPool: Boolean = false,
+    ) {
+        if (cands.isEmpty()) {
+            if (fallbackPool && freeRouterEnabled) { streamThrough(poolCandidates(this), bodyJson, finalChunk, timeoutMs); return }
+            finalChunk(streamError("no candidate models available")); return
+        }
+        for ((p, m) in cands) {
+            var decided = false
+            var ok = false
+            forwardChatStreaming(p, m, bodyJson, secrets, { ev ->
+                if (decided) return@forwardChatStreaming
+                if (!ok) {
+                    if (isErrorEvent(ev)) { decided = true; return@forwardChatStreaming }
+                    ok = true; decided = true
+                }
+                finalChunk(ev)
+            }, timeoutMs)
+            if (ok) return
+        }
+        if (fallbackPool && freeRouterEnabled) {
+            streamThrough(poolCandidates(this), bodyJson, finalChunk, timeoutMs)
+        } else {
+            finalChunk(streamError("all candidate models failed"))
+        }
+    }
+
     fun addManualFree(entry: String) {
         if (manualFree.add(entry.trim())) refreshNow()
     }
@@ -121,7 +176,6 @@ class FreeRouterEngine(
         if (manualFree.remove(entry.trim())) refreshNow()
     }
 
-    // 上游 cli `recheck` 等价：清掉隔离与退避计时，然后立即跑一轮刷新（后台线程）。
     fun recheck(providerId: String? = null) {
         health.clearQuarantine(providerId)
         refreshNow()
@@ -129,21 +183,13 @@ class FreeRouterEngine(
 
     fun refreshNow() {
         Thread {
-            try {
-                runCycle(this, 30 * 60 * 1000L)
-            } catch (e: Exception) {
-                Log.e("FreeRouter", "manual refresh failed", e)
-            }
+            try { runCycle(this, 30 * 60 * 1000L) } catch (e: Exception) { Log.e("FreeRouter", "manual refresh failed", e) }
         }.start()
     }
 
     fun start() {
         Thread {
-            try {
-                runCycle(this, 30 * 60 * 1000L)
-            } catch (e: Exception) {
-                Log.e("FreeRouter", "initial discovery failed", e)
-            }
+            try { runCycle(this, 30 * 60 * 1000L) } catch (e: Exception) { Log.e("FreeRouter", "initial discovery failed", e) }
         }.start()
         watch.start()
     }
@@ -153,7 +199,59 @@ class FreeRouterEngine(
     }
 }
 
-// 从 OpenAI 风格响应的 usage 字段抽取 token 计数；解析失败返回 0。
+// 收集 free-router 候选（按健康度排序），流式与非流式共用
+internal fun poolCandidates(engine: FreeRouterEngine): List<Pair<Provider, String>> {
+    val now = System.currentTimeMillis()
+    val out = mutableListOf<Pair<Provider, String>>()
+    fun add(p: Provider, m: String) {
+        val alias = directAlias(p.id, m)
+        if (engine.modelEnabled[alias] == false) return
+        val h = engine.health.get(p.id, m)
+        val status = h?.status ?: HealthStatus.UNKNOWN
+        if (status == HealthStatus.QUARANTINED) return
+        if (h != null && h.retryAfter > now) return
+        out.add(p to m)
+    }
+    for (p in engine.providers) {
+        if (!p.routable) continue
+        for (m in engine.discovered[p.id] ?: emptyList()) add(p, m)
+    }
+    for ((p, m) in engine.manualCandidates()) add(p, m)
+    out.sortWith(compareBy<Pair<Provider, String>> { (p, m) ->
+        if (engine.traffic.lastOkWithin(directAlias(p.id, m))) 0 else 1
+    }.thenBy { (p, m) ->
+        val h = engine.health.get(p.id, m)
+        when {
+            h?.status == HealthStatus.HEALTHY -> 0
+            h?.lastOk != null -> 1
+            h?.status == HealthStatus.UNKNOWN -> 2
+            else -> 3
+        }
+    })
+    return out
+}
+
+// 非流式路由：沿用候选池 + 错误体检测做 failover
+fun routePool(engine: FreeRouterEngine, bodyJson: String, timeoutMs: Int): Response {
+    val cands = poolCandidates(engine)
+    for ((p, m) in cands) {
+        val alias = directAlias(p.id, m)
+        val t0 = System.currentTimeMillis()
+        val r = forwardChat(p, m, bodyJson, engine.secrets, timeoutMs)
+        val dt = System.currentTimeMillis() - t0
+        val (pt, ct) = extractUsage(r.text)
+        engine.traffic.record(p.id, alias, r.ok, pt, ct, pt + ct)
+        engine.traffic.recordCall(CallRecord(ok = r.ok, alias = alias, realModel = m, durationMs = dt, promptTokens = pt, completionTokens = ct))
+        if (r.ok && !isErrorResponse(r.text)) return r
+    }
+    return Response(502, """{"error":"all free models failed"}""".toByteArray())
+}
+
+fun streamError(msg: String): String =
+    "data: " + JSONObject().put("error", msg).toString() + "\n\n"
+
+fun isErrorResponse(text: String): Boolean = isErrorEvent(text)
+
 fun extractUsage(text: String): Pair<Long, Long> {
     return try {
         val o = JSONObject(text)

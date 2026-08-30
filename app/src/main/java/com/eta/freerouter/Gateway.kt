@@ -6,6 +6,9 @@ import com.eta.freerouter.core.transport.Response as EngineResponse
 import fi.iki.elonen.NanoHTTPD
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.PipedInputStream
+import java.io.PipedOutputStream
+import java.nio.charset.StandardCharsets
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -31,7 +34,6 @@ class LocalGateway(private val port: Int, private val engine: FreeRouterEngine) 
         return NanoHTTPD.newFixedLengthResponse(NanoHTTPD.Response.Status.OK, "application/json", JSONObject().put("object", "list").put("data", arr).toString())
     }
 
-    // 上游 gateway /spend/logs 等价：暴露本地调用明细，兼容外部 calls 类工具。
     private fun handleSpendLogs(): NanoHTTPD.Response {
         val fmt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
         val arr = JSONArray()
@@ -57,9 +59,29 @@ class LocalGateway(private val port: Int, private val engine: FreeRouterEngine) 
             while (off < len) { val r = session.inputStream.read(buf, off, len - off); if (r < 0) break; off += r }
             buf
         } else ByteArray(0)
-        val reqModel = try { JSONObject(String(body, Charsets.UTF_8)).optString("model", "free-router") } catch (_: Exception) { "free-router" }
-        val resp: EngineResponse = engine.routeChat(reqModel, String(body, Charsets.UTF_8))
-        return NanoHTTPD.newFixedLengthResponse(statusFromCode(resp.status), "application/json", resp.text)
+        val bodyStr = String(body, StandardCharsets.UTF_8)
+        val reqModel = try { JSONObject(bodyStr).optString("model", "free-router") } catch (_: Exception) { "free-router" }
+        val stream = try { JSONObject(bodyStr).optBoolean("stream", false) } catch (_: Exception) { false }
+        if (!stream) {
+            val resp: EngineResponse = engine.routeChat(reqModel, bodyStr)
+            return NanoHTTPD.newFixedLengthResponse(statusFromCode(resp.status), "application/json", resp.text)
+        }
+        val pipedIn = PipedInputStream(16384)
+        val pipedOut = PipedOutputStream(pipedIn)
+        val resp = NanoHTTPD.newChunkedResponse(NanoHTTPD.Response.Status.OK, "text/event-stream", pipedIn)
+        resp.addHeader("Cache-Control", "no-cache")
+        resp.addHeader("Connection", "keep-alive")
+        resp.addHeader("X-Accel-Buffering", "no")
+        Thread {
+            try {
+                engine.routeChatStreaming(reqModel, bodyStr) { chunk ->
+                    try { pipedOut.write(chunk.toByteArray(StandardCharsets.UTF_8)); pipedOut.flush() } catch (_: Exception) {}
+                }
+            } finally {
+                try { pipedOut.close() } catch (_: Exception) {}
+            }
+        }.start()
+        return resp
     }
 }
 
