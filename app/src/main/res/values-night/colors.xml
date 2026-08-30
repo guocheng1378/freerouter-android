@@ -7,4 +7,13 @@
     <color name="status_unknown">#9CA3AF</color>
     <color name="status_quarantined">#F87171</color>
     <color name="status_warn">#FBBF24</color>
+    <color name="page_bg">#101216</color>
+    <color name="nav_bg">#1C1F24</color>
+    <color name="tab_active">#4ADE80</color>
+    <color name="tab_inactive">#9CA3AF</color>
+    <color name="pill_bg">#1B8A4B</color>
+    <color name="pill_bg_stopped">#6B7280</color>
+    <color name="pill_bg_starting">#B26A00</color>
+    <color name="pill_text">#FFFFFF</color>
+    <color name="nav_active_bg">#334ADE80</color>
 </resources>

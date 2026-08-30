@@ -7,7 +7,10 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.View
 import android.widget.*
+import android.content.res.ColorStateList
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 import androidx.core.content.ContextCompat
@@ -39,8 +42,21 @@ class MainActivity : AppCompatActivity() {
     private val keyInputs = mutableMapOf<String, EditText>()
     private lateinit var refresher: Handler
 
+    private lateinit var pageHome: ScrollView
+    private lateinit var pageModels: ScrollView
+    private lateinit var pageSettings: ScrollView
+    private lateinit var pageLogs: ScrollView
+    private lateinit var statusPill: TextView
+    private lateinit var themeSpinner: Spinner
+    private lateinit var navContainers: Array<LinearLayout>
+    private lateinit var navIcons: Array<ImageView>
+    private lateinit var navLabels: Array<TextView>
+    private var currentPage = 0
+    private var suppressTheme = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        AppCompatDelegate.setDefaultNightMode(readThemeMode())
         setContentView(R.layout.activity_main)
         prefs = getSharedPreferences("fr_state", MODE_PRIVATE)
         Keys.init(this)
@@ -50,6 +66,30 @@ class MainActivity : AppCompatActivity() {
         providerContainer = findViewById(R.id.providerContainer)
         changelogContainer = findViewById(R.id.changelogContainer)
         callLogContainer = findViewById(R.id.callLogContainer)
+        pageHome = findViewById(R.id.pageHome)
+        pageModels = findViewById(R.id.pageModels)
+        pageSettings = findViewById(R.id.pageSettings)
+        pageLogs = findViewById(R.id.pageLogs)
+        statusPill = findViewById(R.id.statusPill)
+        themeSpinner = findViewById(R.id.themeSpinner)
+        navContainers = arrayOf(
+            findViewById(R.id.navHome), findViewById(R.id.navModels),
+            findViewById(R.id.navSettings), findViewById(R.id.navLogs)
+        )
+        navIcons = arrayOf(
+            findViewById(R.id.navHomeIcon), findViewById(R.id.navModelsIcon),
+            findViewById(R.id.navSettingsIcon), findViewById(R.id.navLogsIcon)
+        )
+        navLabels = arrayOf(
+            findViewById(R.id.navHomeLabel), findViewById(R.id.navModelsLabel),
+            findViewById(R.id.navSettingsLabel), findViewById(R.id.navLogsLabel)
+        )
+        for (i in navContainers.indices) {
+            navContainers[i].setOnClickListener { switchPage(i) }
+        }
+        switchPage(0)
+        updateStatusPill()
+
         statusText = findViewById(R.id.statusText)
         trafficText = findViewById(R.id.trafficText)
         toggleBtn = findViewById(R.id.toggleBtn)
@@ -93,6 +133,7 @@ class MainActivity : AppCompatActivity() {
         buildProviderRows()
         buildChangelog()
         refresher = Handler(Looper.getMainLooper())
+        setupThemeSpinner()
         scheduleRefresh()
     }
 
@@ -229,6 +270,7 @@ class MainActivity : AppCompatActivity() {
         buildCallLog()
         buildWhitelist()
         syncModelsUI()
+        updateStatusPill()
     }
 
     private fun updateStatus() {
@@ -446,6 +488,70 @@ class MainActivity : AppCompatActivity() {
             else -> R.color.text_secondary
         }
         return ContextCompat.getColor(this, c)
+    }
+
+    private fun readThemeMode(): Int {
+        val sp = getSharedPreferences("fr_state", MODE_PRIVATE)
+        return sp.getInt("theme_mode", AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
+    }
+
+    private fun setupThemeSpinner() {
+        val labels = arrayOf("跟随系统", "浅色", "深色")
+        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, labels)
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        themeSpinner.adapter = adapter
+        val sel = when (readThemeMode()) {
+            AppCompatDelegate.MODE_NIGHT_NO -> 1
+            AppCompatDelegate.MODE_NIGHT_YES -> 2
+            else -> 0
+        }
+        themeSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>, view: View?, position: Int, id: Long) {
+                if (suppressTheme) { suppressTheme = false; return }
+                val mode = when (position) {
+                    1 -> AppCompatDelegate.MODE_NIGHT_NO
+                    2 -> AppCompatDelegate.MODE_NIGHT_YES
+                    else -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+                }
+                prefs.edit().putInt("theme_mode", mode).apply()
+                AppCompatDelegate.setDefaultNightMode(mode)
+                recreate()
+            }
+            override fun onNothingSelected(parent: AdapterView<*>) {}
+        }
+        suppressTheme = true
+        themeSpinner.setSelection(sel)
+        suppressTheme = false
+    }
+
+    private fun switchPage(index: Int) {
+        currentPage = index
+        val pages = arrayOf(pageHome, pageModels, pageSettings, pageLogs)
+        for (i in pages.indices) {
+            pages[i].visibility = if (i == index) View.VISIBLE else View.GONE
+        }
+        val active = ContextCompat.getColor(this, R.color.tab_active)
+        val inactive = ContextCompat.getColor(this, R.color.tab_inactive)
+        for (i in navIcons.indices) {
+            val c = if (i == index) active else inactive
+            navIcons[i].setColorFilter(c)
+            navLabels[i].setTextColor(c)
+            navContainers[i].setBackgroundResource(if (i == index) R.drawable.bg_nav_active else 0)
+        }
+    }
+
+    private fun updateStatusPill() {
+        val intentOn = prefs.getBoolean("running", false)
+        val running = RouterService.engineRef != null
+        val (text, colorRes) = if (running) {
+            "● 运行中" to R.color.pill_bg
+        } else if (intentOn) {
+            "◐ 启动中" to R.color.pill_bg_starting
+        } else {
+            "○ 已停止" to R.color.pill_bg_stopped
+        }
+        statusPill.text = text
+        statusPill.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(this, colorRes))
     }
 
     override fun onDestroy() {
